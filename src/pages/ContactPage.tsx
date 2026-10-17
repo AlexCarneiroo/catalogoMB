@@ -33,17 +33,17 @@ export function ContactPage() {
           <article key={card.label} className="rounded-[1.6rem] bg-white/80 p-6 shadow-soft transition duration-300 hover:-translate-y-1">
             <p className="text-[11px] uppercase tracking-[0.18em] text-gold-deep">{card.label}</p>
             {card.href ? (
-              <a href={card.href} className="mt-3 block font-serif text-3xl text-plum" target={card.href.startsWith('http') ? '_blank' : undefined} rel="noreferrer">
+              <a href={card.href} className="mt-3 block font-serif text-2xl break-words text-plum sm:text-3xl" target={card.href.startsWith('http') ? '_blank' : undefined} rel="noreferrer">
                 {card.value}
               </a>
             ) : (
-              <p className="mt-3 font-serif text-3xl text-plum">{card.value}</p>
+              <p className="mt-3 font-serif text-2xl break-words text-plum sm:text-3xl">{card.value}</p>
             )}
           </article>
         ))}
       </div>
       {whatsapp ? (
-        <a href={whatsapp} target="_blank" rel="noreferrer" className={buttonClass('primary', 'mt-10')}>
+        <a href={whatsapp} target={whatsapp.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className={buttonClass('primary', 'mt-10')}>
           Chamar no WhatsApp
         </a>
       ) : null}

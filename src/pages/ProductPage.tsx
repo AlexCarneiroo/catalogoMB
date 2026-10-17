@@ -7,11 +7,12 @@ import { EmptyState, Notice } from '@/components/ui/Feedback'
 import { buttonClass } from '@/components/ui/Button'
 import { Seo } from '@/components/ui/Seo'
 import { useAuth } from '@/contexts/AuthContext'
+import { useCart } from '@/contexts/CartContext'
 import { useStore } from '@/contexts/StoreContext'
 import { useCatalogProducts } from '@/hooks/useCatalogProducts'
 import { getAnyProductBySlug } from '@/services/productsService'
 import type { Product } from '@/types/models'
-import { categoryName, discountPercent, effectivePrice, isOnSale, relatedProducts } from '@/utils/catalog'
+import { categoryName, discountPercent, effectivePrice, isOnSale, productInquiryMessage, relatedProducts } from '@/utils/catalog'
 import { getErrorMessage } from '@/utils/errors'
 import { cn, paragraphs, whatsappHref } from '@/utils/format'
 import { backgroundLocation, productLinkState } from '@/utils/productLink'
@@ -35,6 +36,7 @@ export function ProductPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { categories, settings } = useStore()
+  const { lines, add, setOpen: setCartOpen } = useCart()
   const { isAdmin } = useAuth()
   const { products, loading } = useCatalogProducts()
   const [product, setProduct] = useState<Product | null>(null)
@@ -43,6 +45,8 @@ export function ProductPage() {
   const [photo, setPhoto] = useState(0)
   const [chapter, setChapter] = useState<(typeof chapters)[number]['id']>('peca')
   const [zoomed, setZoomed] = useState(false)
+  const [quantity, setQuantity] = useState(1)
+  const [added, setAdded] = useState(false)
   const zoomedRef = useRef(false)
   zoomedRef.current = zoomed
 
@@ -56,6 +60,8 @@ export function ProductPage() {
       setPhoto(0)
       setChapter('peca')
       setZoomed(false)
+      setQuantity(1)
+      setAdded(false)
       return
     }
     if (!isAdmin) {
@@ -69,6 +75,8 @@ export function ProductPage() {
         setProduct(found)
         setMissing(!found)
         setPhoto(0)
+        setQuantity(1)
+        setAdded(false)
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(getErrorMessage(err))
@@ -93,11 +101,8 @@ export function ProductPage() {
       if (backgroundLocation(location)) navigate(-1)
       else navigate('/produtos')
     }
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
     window.addEventListener('keydown', onKey)
     return () => {
-      document.body.style.overflow = previous
       window.removeEventListener('keydown', onKey)
     }
   }, [location, navigate])
@@ -110,7 +115,20 @@ export function ProductPage() {
   const current = photos[photo] ?? photos[0]
   const category = product ? categories.find((item) => item.id === product.categoryId) : undefined
   const related = product ? relatedProducts(products, product) : []
-  const whatsapp = product ? whatsappHref(settings.whatsapp, `Olá, quero saber mais sobre ${product.name}.`) : ''
+  const whatsapp = product
+    ? whatsappHref(
+        settings.whatsapp,
+        productInquiryMessage(
+          product,
+          category?.name || categoryName(categories, product.categoryId),
+          `${window.location.origin}/produto/${product.slug}`,
+        ),
+      )
+    : ''
+  const inCart = product ? (lines.find((line) => line.productId === product.id)?.quantity ?? 0) : 0
+  const stockCap = product ? (product.stock === null ? 99 : product.stock) : 0
+  const room = Math.max(0, stockCap - inCart)
+  const soldOut = Boolean(product && stockCap <= 0)
   const details = product
     ? [
         ['Marca', product.brand],
@@ -122,7 +140,7 @@ export function ProductPage() {
     : []
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-plum-deep/50 p-0 backdrop-blur-[6px] sm:items-center sm:p-5" role="presentation" onClick={close}>
+    <div data-scroll-lock="" className="fixed inset-0 z-[90] flex items-end justify-center bg-plum-deep/50 p-0 backdrop-blur-[6px] sm:items-center sm:p-5" role="presentation" onClick={close}>
       {product ? (
         <Seo
           title={product.seoTitle || product.name}
@@ -150,13 +168,13 @@ export function ProductPage() {
         role="dialog"
         aria-modal="true"
         aria-label={product?.name ?? 'Produto'}
-        className="sheet-in relative flex h-[100dvh] w-full flex-col overflow-hidden bg-ivory shadow-soft sm:h-auto sm:max-h-[92vh] sm:max-w-6xl sm:flex-row sm:rounded-[2rem]"
+        className="sheet-in relative flex h-[100dvh] max-h-[100dvh] w-full max-w-full flex-col overflow-hidden bg-ivory shadow-soft sm:h-auto sm:max-h-[92vh] sm:max-w-6xl sm:flex-row sm:rounded-[2rem]"
         onClick={(event) => event.stopPropagation()}
       >
         <button
           type="button"
           onClick={close}
-          className="absolute top-4 right-4 z-10 rounded-full bg-ivory/90 px-4 py-2 text-[11px] tracking-[0.18em] text-plum uppercase shadow-soft"
+          className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 z-10 grid h-11 place-items-center rounded-full bg-ivory/90 px-4 text-[11px] tracking-[0.18em] text-plum uppercase shadow-soft"
         >
           Fechar
         </button>
@@ -168,7 +186,7 @@ export function ProductPage() {
           </div>
         ) : (
           <>
-            <div className="relative min-h-[42vh] bg-plum-deep sm:min-h-0 sm:w-[46%] sm:self-stretch">
+            <div className="relative h-[34vh] max-h-72 shrink-0 bg-plum-deep sm:h-auto sm:max-h-none sm:min-h-0 sm:w-[46%] sm:self-stretch">
               {current ? (
                 <button type="button" className="absolute inset-0" onClick={() => setZoomed(true)} aria-label="Ampliar foto">
                   <img src={current.url} alt={product.name} className="h-full w-full object-cover" />
@@ -198,7 +216,7 @@ export function ProductPage() {
               ) : null}
             </div>
 
-            <DragScroll axis="y" className="min-h-0 flex-1 px-5 py-7 sm:max-h-[92vh] sm:px-10 sm:py-10">
+            <DragScroll axis="y" className="min-h-0 flex-1 px-5 py-7 pb-[max(1.75rem,env(safe-area-inset-bottom))] sm:max-h-[92vh] sm:px-10 sm:py-10">
               <div className="flex items-center gap-3">
                 <Monogram className="h-9 w-9" />
                 {category ? (
@@ -210,16 +228,51 @@ export function ProductPage() {
                 )}
               </div>
               {!product.active ? <div className="mt-4"><Notice>Pré-visualização: este produto está inativo e não aparece no catálogo.</Notice></div> : null}
-              <h1 className="display mt-4 text-5xl text-plum md:text-6xl">{product.name}</h1>
+              <h1 className="display mt-4 text-4xl break-words text-plum sm:text-5xl md:text-6xl">{product.name}</h1>
               {product.shortDescription ? <p className="mt-4 max-w-xl text-base leading-relaxed text-muted">{product.shortDescription}</p> : null}
               <PriceTag product={product} large />
               <p className="mt-3 text-sm text-plum">{availabilityLabel(product)}</p>
               {discountPercent(product) ? <p className="mt-1 text-xs tracking-[0.14em] text-gold-deep uppercase">{discountPercent(product)}% nesta edição</p> : null}
-              {whatsapp ? (
-                <a href={whatsapp} target="_blank" rel="noreferrer" className={buttonClass('primary', 'mt-7')}>
-                  Falar no WhatsApp
-                </a>
-              ) : null}
+              <div className="mt-7 flex flex-col gap-3">
+                {room > 0 ? (
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center rounded-full bg-rose-soft">
+                      <button type="button" className="grid h-11 w-11 place-items-center text-lg text-plum" aria-label="Diminuir quantidade" onClick={() => setQuantity((current) => Math.max(1, current - 1))}>
+                        −
+                      </button>
+                      <span className="min-w-6 text-center text-sm text-plum">{Math.min(quantity, room)}</span>
+                      <button type="button" className="grid h-11 w-11 place-items-center text-lg text-plum disabled:opacity-40" aria-label="Aumentar quantidade" disabled={quantity >= room} onClick={() => setQuantity((current) => Math.min(room, current + 1))}>
+                        +
+                      </button>
+                    </div>
+                    <p className="text-sm text-muted">{inCart > 0 ? `${inCart} no carrinho` : 'Quantidade'}</p>
+                  </div>
+                ) : null}
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                  <button
+                    type="button"
+                    disabled={soldOut || room <= 0}
+                    className={buttonClass('primary', 'min-h-11')}
+                    onClick={() => {
+                      add(product, category?.name || categoryName(categories, product.categoryId), Math.min(quantity, room))
+                      setAdded(true)
+                      setQuantity(1)
+                    }}
+                  >
+                    {soldOut ? 'Esgotado' : room <= 0 ? 'No carrinho' : 'Adicionar ao carrinho'}
+                  </button>
+                  {whatsapp ? (
+                    <a href={whatsapp} target={whatsapp.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className={buttonClass('gold', 'min-h-11')}>
+                      Falar no WhatsApp
+                    </a>
+                  ) : null}
+                </div>
+                {added ? (
+                  <button type="button" className="w-fit text-[11px] tracking-[0.16em] text-gold-deep uppercase" onClick={() => setCartOpen(true)}>
+                    Adicionado · ver carrinho
+                  </button>
+                ) : null}
+              </div>
 
               {story.length > 0 ? (
                 <div className="mt-10">
@@ -281,7 +334,7 @@ export function ProductPage() {
                         className="w-28 shrink-0"
                       >
                         {item.mainImage ? <img src={item.mainImage} alt="" className="aspect-[3/4] w-full rounded-2xl object-cover" /> : <span className="block aspect-[3/4] rounded-2xl bg-ivory-deep" />}
-                        <span className="mt-2 block font-serif text-lg leading-none text-plum italic">{item.name}</span>
+                        <span className="mt-2 block font-serif text-base leading-tight break-words text-plum italic">{item.name}</span>
                       </Link>
                     ))}
                   </DragScroll>

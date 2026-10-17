@@ -72,16 +72,16 @@ export function LoginPage() {
         <form className="mt-6 space-y-4" onSubmit={(event) => void onSubmit(event)}>
           <label className="block">
             <span className="mb-2 block text-[11px] uppercase tracking-[0.16em] text-muted">E-mail</span>
-            <input type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} className="w-full border border-plum/15 bg-white px-4 py-3 text-sm outline-none focus:border-gold" />
+            <input type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} className="min-h-11 w-full border border-plum/15 bg-white px-4 py-3 text-base outline-none focus:border-gold" />
           </label>
           <label className="block">
             <span className="mb-2 block text-[11px] uppercase tracking-[0.16em] text-muted">Senha</span>
-            <input type="password" autoComplete={mode === 'criar' ? 'new-password' : 'current-password'} required minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} className="w-full border border-plum/15 bg-white px-4 py-3 text-sm outline-none focus:border-gold" />
+            <input type="password" autoComplete={mode === 'criar' ? 'new-password' : 'current-password'} required minLength={6} value={password} onChange={(event) => setPassword(event.target.value)} className="min-h-11 w-full border border-plum/15 bg-white px-4 py-3 text-base outline-none focus:border-gold" />
           </label>
           {mode === 'criar' ? (
             <label className="block">
               <span className="mb-2 block text-[11px] uppercase tracking-[0.16em] text-muted">Confirmar senha</span>
-              <input type="password" autoComplete="new-password" required minLength={6} value={confirm} onChange={(event) => setConfirm(event.target.value)} className="w-full border border-plum/15 bg-white px-4 py-3 text-sm outline-none focus:border-gold" />
+              <input type="password" autoComplete="new-password" required minLength={6} value={confirm} onChange={(event) => setConfirm(event.target.value)} className="min-h-11 w-full border border-plum/15 bg-white px-4 py-3 text-base outline-none focus:border-gold" />
             </label>
           ) : null}
           {error ? <Notice>{error}</Notice> : null}

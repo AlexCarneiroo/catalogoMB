@@ -38,7 +38,7 @@ export function Hero({ banners }: { banners: Banner[] }) {
   const title = splitTitle(slide.title || fallback.title)
 
   return (
-    <section className="relative overflow-hidden px-5 pt-28 pb-8 md:px-8 md:pt-32">
+    <section className="relative overflow-hidden px-5 pt-[calc(env(safe-area-inset-top)+6.5rem)] pb-8 md:px-8 md:pt-32">
       <div className="pointer-events-none absolute top-16 -left-16 h-56 w-56 rounded-full bg-rose/50 blur-3xl drift" />
       <div className="pointer-events-none absolute top-28 right-[18%] h-40 w-40 rounded-full bg-lilac/40 blur-3xl drift" style={{ animationDelay: '-4s' }} />
       <div className="mx-auto grid min-h-[78svh] max-w-6xl items-center gap-10 lg:grid-cols-[1.15fr_0.85fr]">
@@ -47,7 +47,7 @@ export function Hero({ banners }: { banners: Banner[] }) {
             <span className="draw-line inline-block h-px w-12 bg-gold" />
             Coleção
           </p>
-          <h1 className="display mt-6 max-w-3xl text-6xl text-plum md:text-8xl">
+          <h1 className="display mt-6 max-w-3xl text-5xl text-plum sm:text-6xl md:text-8xl">
             {title.lead}{' '}
             {title.accent ? <span className="italic text-rose">{title.accent}</span> : null}
           </h1>
@@ -65,7 +65,7 @@ export function Hero({ banners }: { banners: Banner[] }) {
           </div>
         </div>
 
-        <div className="relative mx-auto h-[68vw] max-h-[560px] w-full max-w-md lg:h-[560px]">
+        <div className="relative mx-auto h-[72vw] max-h-[420px] w-full max-w-md sm:max-h-[560px] lg:h-[560px]">
           <div className="absolute -top-6 -left-6 h-28 w-28 rounded-full border border-gold/70" />
           <div className="float-frame absolute inset-6 overflow-hidden rounded-[2.4rem] bg-plum shadow-soft">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(216,164,182,0.9),transparent_36%),radial-gradient(circle_at_80%_80%,rgba(201,168,106,0.75),transparent_32%),linear-gradient(160deg,#6a3d72,#321833)]" />
@@ -85,8 +85,10 @@ export function Hero({ banners }: { banners: Banner[] }) {
               type="button"
               aria-label={`Banner ${itemIndex + 1}`}
               onClick={() => setIndex(itemIndex)}
-              className={cn('h-1.5 rounded-full transition-all', itemIndex === index ? 'w-10 bg-plum' : 'w-4 bg-plum/20')}
-            />
+              className="grid h-11 w-11 place-items-center"
+            >
+              <span className={cn('h-1.5 rounded-full transition-all', itemIndex === index ? 'w-8 bg-plum' : 'w-3 bg-plum/20')} />
+            </button>
           ))}
         </div>
       ) : null}

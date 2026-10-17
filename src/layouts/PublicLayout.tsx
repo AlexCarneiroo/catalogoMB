@@ -28,7 +28,7 @@ export function PublicLayout() {
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
-      <main className={home ? 'flex-1' : 'flex-1 pt-28'}>
+      <main className={home ? 'flex-1' : 'flex-1 pt-[calc(env(safe-area-inset-top)+6.5rem)]'}>
         <Suspense fallback={<Spinner />}>
           <div key={page.pathname} className="page-enter">
             <Outlet />

@@ -40,7 +40,7 @@ export function Footer() {
           <div className="mt-4 flex flex-col gap-2 text-sm text-ivory/85">
             {settings.phone ? <a href={`tel:${settings.phone}`} className="w-fit hover:text-gold">{settings.phone}</a> : null}
             {settings.email ? <a href={`mailto:${settings.email}`} className="w-fit hover:text-gold">{settings.email}</a> : null}
-            {whatsapp ? <a href={whatsapp} target="_blank" rel="noreferrer" className="w-fit hover:text-gold">WhatsApp</a> : null}
+            {whatsapp ? <a href={whatsapp} target={whatsapp.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className="w-fit hover:text-gold">WhatsApp</a> : null}
             {instagram ? <a href={instagram} target="_blank" rel="noreferrer" className="w-fit hover:text-gold">Instagram</a> : null}
             {tiktok ? <a href={tiktok} target="_blank" rel="noreferrer" className="w-fit hover:text-gold">TikTok</a> : null}
             {facebook ? <a href={facebook} target="_blank" rel="noreferrer" className="w-fit hover:text-gold">Facebook</a> : null}
@@ -48,7 +48,7 @@ export function Footer() {
           </div>
         </div>
       </div>
-      <div className="border-t border-ivory/10 px-5 py-5 text-center text-xs tracking-[0.16em] text-ivory/60 uppercase">
+      <div className="border-t border-ivory/10 px-5 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-center text-xs tracking-[0.16em] text-ivory/60 uppercase">
         {settings.storeName} · {new Date().getFullYear()}
       </div>
     </footer>

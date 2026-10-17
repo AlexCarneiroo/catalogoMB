@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { FormSection, Field, SelectField, TextArea, Toggle } from '@/components/admin/FormControls'
 import { ProductImagesField } from '@/components/admin/ProductImagesField'
@@ -8,6 +8,7 @@ import { listAllCategories } from '@/services/categoriesService'
 import { draftFromProduct, emptyProductDraft, validateProductDraft } from '@/services/productDraft'
 import { getProduct, saveProduct } from '@/services/productsService'
 import type { Category, ProductDraft } from '@/types/models'
+import { useAutosave } from '@/hooks/useAutosave'
 import { discountPercent } from '@/utils/catalog'
 import { getErrorMessage } from '@/utils/errors'
 import { parsePrice, slugify } from '@/utils/format'
@@ -24,6 +25,17 @@ export function ProductFormPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const pathsRef = useRef<string[]>([])
+  const autosave = useAutosave(async (current: ProductDraft) => {
+    if (!id) return current
+    const validation = validateProductDraft(current)
+    if (validation) throw new Error(validation)
+    const savedProduct = await saveProduct(id, current, pathsRef.current)
+    const next = draftFromProduct(savedProduct)
+    pathsRef.current = savedProduct.images.map((image) => image.path).filter(Boolean)
+    setPreviousPaths(pathsRef.current)
+    return next
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -46,17 +58,28 @@ export function ProductFormPage() {
   }, [id])
 
   function applyProduct(product: Product) {
-    setDraft(draftFromProduct(product))
-    setPreviousPaths(product.images.map((image) => image.path).filter(Boolean))
+    const next = draftFromProduct(product)
+    const paths = product.images.map((image) => image.path).filter(Boolean)
+    pathsRef.current = paths
+    setDraft(next)
+    setPreviousPaths(paths)
     setSlugTouched(true)
+    autosave.sync(next, true)
   }
 
   function update(partial: Partial<ProductDraft>) {
     setDraft((current) => {
       const next = { ...current, ...partial }
       if (partial.name !== undefined && !slugTouched) next.slug = slugify(partial.name)
+      autosave.sync(next)
       return next
     })
+  }
+
+  function commit(partial: Partial<ProductDraft>) {
+    update(partial)
+    if (!id) return
+    queueMicrotask(() => void autosave.flush())
   }
 
   async function onSubmit(event: FormEvent) {
@@ -89,18 +112,19 @@ export function ProductFormPage() {
   if (loading) return <Spinner label="Carregando produto" />
 
   return (
-    <form className="mx-auto max-w-4xl space-y-6" onSubmit={(event) => void onSubmit(event)}>
+    <form className="mx-auto max-w-4xl space-y-6" onSubmit={(event) => void onSubmit(event)} onBlur={() => { if (id) void autosave.flush() }}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-[11px] uppercase tracking-[0.22em] text-gold-deep">{id ? 'Editar' : 'Novo'}</p>
           <h1 className="mt-2 font-serif text-5xl text-plum">{id ? 'Editar produto' : 'Adicionar produto'}</h1>
+          {id ? <p className="mt-2 text-xs text-gold-deep">{autosave.saving ? 'Salvando…' : autosave.saved ? 'Salvo' : 'Salva ao sair do campo.'}</p> : null}
         </div>
         <Link to="/admin/produtos" className="text-[11px] uppercase tracking-[0.16em] text-plum">
           Voltar
         </Link>
       </div>
       {categoryOptions.length === 0 ? <Notice>Crie uma categoria antes de publicar um produto.</Notice> : null}
-      {error ? <Notice>{error}</Notice> : null}
+      {error || autosave.error ? <Notice>{error || autosave.error}</Notice> : null}
       {success ? <Notice tone="success">{success}</Notice> : null}
 
       <FormSection title="Informações principais">
@@ -110,7 +134,7 @@ export function ProductFormPage() {
         </div>
         <TextArea label="Descrição curta" value={draft.shortDescription} onChange={(event) => update({ shortDescription: event.target.value })} />
         <TextArea label="Descrição" value={draft.description} onChange={(event) => update({ description: event.target.value })} />
-        <SelectField label="Categoria" value={draft.categoryId} onChange={(event) => update({ categoryId: event.target.value })}>
+        <SelectField label="Categoria" value={draft.categoryId} onChange={(event) => commit({ categoryId: event.target.value })}>
           <option value="">Selecione</option>
           {categoryOptions.map((category) => (
             <option key={category.id} value={category.id}>
@@ -131,7 +155,7 @@ export function ProductFormPage() {
       </FormSection>
 
       <FormSection title="Fotos">
-        <ProductImagesField images={draft.images} onChange={(images) => update({ images })} />
+        <ProductImagesField images={draft.images} onChange={(images) => commit({ images })} />
       </FormSection>
 
       <FormSection title="Informações adicionais">
@@ -150,9 +174,9 @@ export function ProductFormPage() {
 
       <FormSection title="Publicação">
         <div className="grid gap-3">
-          <Toggle label="Ativo no catálogo" checked={draft.active} onChange={(active) => update({ active })} />
-          <Toggle label="Produto em destaque" checked={draft.featured} onChange={(featured) => update({ featured })} />
-          <Toggle label="Selo de novidade" checked={draft.isNew} onChange={(isNew) => update({ isNew })} />
+          <Toggle label="Ativo no catálogo" checked={draft.active} onChange={(active) => commit({ active })} />
+          <Toggle label="Produto em destaque" checked={draft.featured} onChange={(featured) => commit({ featured })} />
+          <Toggle label="Selo de novidade" checked={draft.isNew} onChange={(isNew) => commit({ isNew })} />
         </div>
       </FormSection>
 
@@ -161,11 +185,13 @@ export function ProductFormPage() {
         <TextArea label="Descrição" value={draft.seoDescription} onChange={(event) => update({ seoDescription: event.target.value })} />
       </FormSection>
 
-      <div className="sticky bottom-0 flex justify-end border-t border-plum/10 bg-ivory/95 py-4">
-        <Button type="submit" disabled={saving || categoryOptions.length === 0}>
-          {saving ? 'Salvando' : id ? 'Salvar alterações' : 'Publicar produto'}
-        </Button>
-      </div>
+      {id ? null : (
+        <div className="sticky bottom-0 flex justify-end border-t border-plum/10 bg-ivory/95 py-4">
+          <Button type="submit" disabled={saving || categoryOptions.length === 0}>
+            {saving ? 'Salvando' : 'Publicar produto'}
+          </Button>
+        </div>
+      )}
     </form>
   )
 }

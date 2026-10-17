@@ -39,7 +39,7 @@ export function HomePage() {
               <p className="text-xs font-medium tracking-[0.28em] text-gold-deep uppercase">Maquiagem</p>
               <h2 className="display mt-3 text-5xl text-plum md:text-7xl">Destaques</h2>
             </div>
-            <Link to="/produtos" className="link-gold mb-2 hidden text-[11px] uppercase tracking-[0.18em] text-plum sm:inline">
+            <Link to="/produtos" className="link-gold mb-2 shrink-0 text-[11px] uppercase tracking-[0.18em] text-plum">
               Ver catálogo
             </Link>
           </div>
@@ -50,9 +50,9 @@ export function HomePage() {
               ))}
             </div>
           ) : highlights.length > 0 ? (
-            <DragScroll className="mt-10 flex gap-5 pb-1">
+            <DragScroll className="mt-10 flex items-stretch gap-5 pb-1">
               {highlights.map((product, index) => (
-                <div key={product.id} className="w-64 shrink-0 sm:w-72">
+                <div key={product.id} className="flex w-64 shrink-0 sm:w-72">
                   <ProductCard index={index} product={product} category={categoryName(categories, product.categoryId)} />
                 </div>
               ))}

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { RowMenu } from '@/components/admin/RowMenu'
 import { SingleImageField } from '@/components/admin/SingleImageField'
 import { Field, TextArea, Toggle } from '@/components/admin/FormControls'
@@ -31,8 +31,12 @@ export function CategoriesAdminPage() {
   const [slugTouched, setSlugTouched] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState<Category | null>(null)
+  const draftRef = useRef(draft)
+  const savedSerial = useRef('')
+  draftRef.current = draft
 
   async function load() {
     setCategories(await listAllCategories())
@@ -62,31 +66,70 @@ export function CategoriesAdminPage() {
       previousPath: category.imagePath,
     })
     setSlugTouched(true)
+    savedSerial.current = serial({
+      id: category.id,
+      name: category.name,
+      slug: category.slug,
+      description: category.description,
+      order: String(category.order),
+      active: category.active,
+      image: category.image ? { url: category.image, path: category.imagePath } : null,
+      previousPath: category.imagePath,
+    })
+    setSaved(false)
     setOpen(true)
   }
 
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault()
+  function serial(value: Draft): string {
+    return JSON.stringify({ ...value, image: value.image ? { url: value.image.url, path: value.image.path } : null })
+  }
+
+  function edit(partial: Partial<Draft>) {
+    setDraft((current) => {
+      const next = { ...current, ...partial }
+      draftRef.current = next
+      return next
+    })
+  }
+
+  async function persist(closeAfter: boolean) {
+    const current = draftRef.current
+    if (!current.name.trim()) {
+      if (closeAfter) setError('Informe o nome da categoria.')
+      return
+    }
+    const nextSerial = serial(current)
+    if (!closeAfter && current.id && nextSerial === savedSerial.current) return
     setSaving(true)
     setError(null)
     try {
-      const image = await resolveLocalImage(draft.image, 'categories', draft.previousPath)
-      await saveCategory(draft.id, {
-        name: draft.name,
-        slug: slugify(draft.slug || draft.name),
-        description: draft.description,
+      const image = await resolveLocalImage(current.image, 'categories', current.previousPath)
+      await saveCategory(current.id, {
+        name: current.name,
+        slug: slugify(current.slug || current.name),
+        description: current.description,
         image: image.url,
         imagePath: image.path,
-        active: draft.active,
-        order: Number(draft.order) || 0,
+        active: current.active,
+        order: Number(current.order) || 0,
       })
-      setOpen(false)
+      const stored = { ...current, image: image.url ? { url: image.url, path: image.path } : null, previousPath: image.path }
+      draftRef.current = stored
+      savedSerial.current = serial(stored)
+      setDraft(stored)
+      setSaved(true)
+      if (closeAfter) setOpen(false)
       await load()
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
       setSaving(false)
     }
+  }
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault()
+    await persist(true)
   }
 
   async function onDelete() {
@@ -137,14 +180,15 @@ export function CategoriesAdminPage() {
         ))}
       </div>
       <Modal open={open} title={draft.id ? 'Editar categoria' : 'Nova categoria'} onClose={() => setOpen(false)}>
-        <form className="space-y-4" onSubmit={(event) => void onSubmit(event)}>
-          <Field label="Nome" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value, slug: slugTouched ? current.slug : slugify(event.target.value) }))} required />
-          <Field label="Slug" value={draft.slug} onChange={(event) => { setSlugTouched(true); setDraft((current) => ({ ...current, slug: event.target.value })) }} />
-          <TextArea label="Descrição" value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} />
-          <Field label="Ordem" type="number" value={draft.order} onChange={(event) => setDraft((current) => ({ ...current, order: event.target.value }))} />
-          <SingleImageField label="Imagem" image={draft.image} onChange={(image) => setDraft((current) => ({ ...current, image }))} />
-          <Toggle label="Ativa" checked={draft.active} onChange={(active) => setDraft((current) => ({ ...current, active }))} />
-          <Button type="submit" disabled={saving}>{saving ? 'Salvando' : 'Salvar categoria'}</Button>
+        <form className="space-y-4" onSubmit={(event) => void onSubmit(event)} onBlur={() => { if (draftRef.current.id) void persist(false) }}>
+          {draft.id ? <p className="text-xs text-gold-deep">{saving ? 'Salvando…' : saved ? 'Salvo' : 'Salva ao sair do campo.'}</p> : null}
+          <Field label="Nome" value={draft.name} onChange={(event) => edit({ name: event.target.value, slug: slugTouched ? draftRef.current.slug : slugify(event.target.value) })} required />
+          <Field label="Slug" value={draft.slug} onChange={(event) => { setSlugTouched(true); edit({ slug: event.target.value }) }} />
+          <TextArea label="Descrição" value={draft.description} onChange={(event) => edit({ description: event.target.value })} />
+          <Field label="Ordem" type="number" value={draft.order} onChange={(event) => edit({ order: event.target.value })} />
+          <SingleImageField label="Imagem" image={draft.image} onChange={(image) => { edit({ image }); if (draftRef.current.id) queueMicrotask(() => void persist(false)) }} />
+          <Toggle label="Ativa" checked={draft.active} onChange={(active) => { edit({ active }); if (draftRef.current.id) queueMicrotask(() => void persist(false)) }} />
+          {draft.id ? null : <Button type="submit" disabled={saving}>{saving ? 'Salvando' : 'Salvar categoria'}</Button>}
         </form>
       </Modal>
       <ConfirmDialog open={pending !== null} title="Excluir categoria" description={pending ? `Excluir “${pending.name}”?` : ''} busy={saving} onClose={() => setPending(null)} onConfirm={() => void onDelete()} />

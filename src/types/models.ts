@@ -148,6 +148,20 @@ export type CatalogFilters = {
   promoOnly: boolean
 }
 
+export type CartLine = {
+  productId: string
+  slug: string
+  name: string
+  image: string
+  price: number
+  promotionalPrice: number | null
+  sku: string
+  category: string
+  shortDescription: string
+  stock: number | null
+  quantity: number
+}
+
 export const defaultSettings: StoreSettings = {
   storeName: 'Mabelle Make',
   logo: '',

@@ -7,6 +7,7 @@ export function DragScroll({ children, className, axis = 'x' }: { children: Reac
 
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
     if (event.pointerType === 'touch' || !scroller.current) return
+    if (event.target instanceof Element && event.target.closest('a, button, input, textarea, select, label')) return
     event.preventDefault()
     event.stopPropagation()
     drag.current = {
@@ -45,7 +46,7 @@ export function DragScroll({ children, className, axis = 'x' }: { children: Reac
       ref={scroller}
       className={cn(
         'drag-scroll cursor-grab select-none active:cursor-grabbing',
-        axis === 'y' ? 'touch-pan-y overflow-y-auto' : 'touch-pan-x overflow-x-auto',
+        axis === 'y' ? 'touch-pan-y overflow-y-auto overscroll-contain' : 'overflow-x-auto overscroll-x-contain',
         className,
       )}
       onPointerDown={onPointerDown}

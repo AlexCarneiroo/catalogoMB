@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { RowMenu } from '@/components/admin/RowMenu'
 import { SingleImageField } from '@/components/admin/SingleImageField'
 import { Field, TextArea, Toggle } from '@/components/admin/FormControls'
@@ -40,8 +40,12 @@ export function BannersAdminPage() {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState<Banner | null>(null)
+  const draftRef = useRef(draft)
+  const savedSerial = useRef('')
+  draftRef.current = draft
 
   async function load() {
     setBanners(await listAllBanners())
@@ -65,32 +69,68 @@ export function BannersAdminPage() {
       image: banner.image ? { url: banner.image, path: banner.imagePath } : null,
       previousPath: banner.imagePath,
     })
+    savedSerial.current = serial({
+      id: banner.id,
+      title: banner.title,
+      subtitle: banner.subtitle,
+      buttonText: banner.buttonText,
+      link: banner.link,
+      order: String(banner.order),
+      active: banner.active,
+      image: banner.image ? { url: banner.image, path: banner.imagePath } : null,
+      previousPath: banner.imagePath,
+    })
+    setSaved(false)
     setOpen(true)
   }
 
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault()
+  function serial(value: Draft): string {
+    return JSON.stringify({ ...value, image: value.image ? { url: value.image.url, path: value.image.path } : null })
+  }
+
+  function edit(partial: Partial<Draft>) {
+    setDraft((current) => {
+      const next = { ...current, ...partial }
+      draftRef.current = next
+      return next
+    })
+  }
+
+  async function persist(closeAfter: boolean) {
+    const current = draftRef.current
+    const nextSerial = serial(current)
+    if (!closeAfter && current.id && nextSerial === savedSerial.current) return
     setSaving(true)
     setError(null)
     try {
-      const image = await resolveLocalImage(draft.image, 'banners', draft.previousPath)
-      await saveBanner(draft.id, {
-        title: draft.title,
-        subtitle: draft.subtitle,
-        buttonText: draft.buttonText,
-        link: draft.link,
+      const image = await resolveLocalImage(current.image, 'banners', current.previousPath)
+      await saveBanner(current.id, {
+        title: current.title,
+        subtitle: current.subtitle,
+        buttonText: current.buttonText,
+        link: current.link,
         image: image.url,
         imagePath: image.path,
-        order: Number(draft.order) || 0,
-        active: draft.active,
+        order: Number(current.order) || 0,
+        active: current.active,
       })
-      setOpen(false)
+      const stored = { ...current, image: image.url ? { url: image.url, path: image.path } : null, previousPath: image.path }
+      draftRef.current = stored
+      savedSerial.current = serial(stored)
+      setDraft(stored)
+      setSaved(true)
+      if (closeAfter) setOpen(false)
       await load()
     } catch (err) {
       setError(getErrorMessage(err))
     } finally {
       setSaving(false)
     }
+  }
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault()
+    await persist(true)
   }
 
   async function onDelete() {
@@ -140,15 +180,16 @@ export function BannersAdminPage() {
         ))}
       </div>
       <Modal open={open} title={draft.id ? 'Editar banner' : 'Novo banner'} onClose={() => setOpen(false)}>
-        <form className="space-y-4" onSubmit={(event) => void onSubmit(event)}>
-          <Field label="Título" value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} />
-          <TextArea label="Subtítulo" value={draft.subtitle} onChange={(event) => setDraft((current) => ({ ...current, subtitle: event.target.value }))} />
-          <Field label="Texto do botão" value={draft.buttonText} onChange={(event) => setDraft((current) => ({ ...current, buttonText: event.target.value }))} />
-          <Field label="Link" value={draft.link} onChange={(event) => setDraft((current) => ({ ...current, link: event.target.value }))} />
-          <Field label="Ordem" type="number" value={draft.order} onChange={(event) => setDraft((current) => ({ ...current, order: event.target.value }))} />
-          <SingleImageField label="Imagem" image={draft.image} onChange={(image) => setDraft((current) => ({ ...current, image }))} />
-          <Toggle label="Ativo" checked={draft.active} onChange={(active) => setDraft((current) => ({ ...current, active }))} />
-          <Button type="submit" disabled={saving}>{saving ? 'Salvando' : 'Salvar banner'}</Button>
+        <form className="space-y-4" onSubmit={(event) => void onSubmit(event)} onBlur={() => { if (draftRef.current.id) void persist(false) }}>
+          {draft.id ? <p className="text-xs text-gold-deep">{saving ? 'Salvando…' : saved ? 'Salvo' : 'Salva ao sair do campo.'}</p> : null}
+          <Field label="Título" value={draft.title} onChange={(event) => edit({ title: event.target.value })} />
+          <TextArea label="Subtítulo" value={draft.subtitle} onChange={(event) => edit({ subtitle: event.target.value })} />
+          <Field label="Texto do botão" value={draft.buttonText} onChange={(event) => edit({ buttonText: event.target.value })} />
+          <Field label="Link" value={draft.link} onChange={(event) => edit({ link: event.target.value })} />
+          <Field label="Ordem" type="number" value={draft.order} onChange={(event) => edit({ order: event.target.value })} />
+          <SingleImageField label="Imagem" image={draft.image} onChange={(image) => { edit({ image }); if (draftRef.current.id) queueMicrotask(() => void persist(false)) }} />
+          <Toggle label="Ativo" checked={draft.active} onChange={(active) => { edit({ active }); if (draftRef.current.id) queueMicrotask(() => void persist(false)) }} />
+          {draft.id ? null : <Button type="submit" disabled={saving}>{saving ? 'Salvando' : 'Salvar banner'}</Button>}
         </form>
       </Modal>
       <ConfirmDialog open={pending !== null} title="Excluir banner" description="Esta imagem deixa de aparecer na home." busy={saving} onClose={() => setPending(null)} onConfirm={() => void onDelete()} />

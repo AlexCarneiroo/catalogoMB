@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Field, TextArea, Toggle } from '@/components/admin/FormControls'
 import { RowMenu } from '@/components/admin/RowMenu'
 import { Button } from '@/components/ui/Button'
@@ -16,7 +16,13 @@ export function FeedbackAdminPage() {
   const [draft, setDraft] = useState(empty)
   const [editing, setEditing] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const draftRef = useRef(draft)
+  const editingRef = useRef(editing)
+  draftRef.current = draft
+  editingRef.current = editing
 
   async function load() {
     const [next, settings] = await Promise.all([listAllTestimonials(), getSettings()])
@@ -49,17 +55,42 @@ export function FeedbackAdminPage() {
     }
   }
 
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault()
+  function editDraft(partial: Partial<typeof empty>) {
+    setDraft((current) => {
+      const next = { ...current, ...partial }
+      draftRef.current = next
+      return next
+    })
+  }
+
+  async function persist(reset: boolean) {
+    const current = draftRef.current
+    const id = editingRef.current
+    if (!reset && !id) return
+    if (!current.name.trim() || !current.text.trim()) return
+    setSaving(true)
     setError(null)
     try {
-      await saveTestimonial(editing, { ...draft, name: draft.name, text: draft.text, detail: draft.detail, active: draft.active, order: Number(draft.order) || items.length + 1 })
-      setDraft(empty)
-      setEditing(null)
+      await saveTestimonial(id, { ...current, order: Number(current.order) || items.length + 1 })
+      setSaved(true)
+      if (reset) {
+        setDraft(empty)
+        setEditing(null)
+        draftRef.current = empty
+        editingRef.current = null
+        setSaved(false)
+      }
       await load()
     } catch (err) {
       setError(getErrorMessage(err))
+    } finally {
+      setSaving(false)
     }
+  }
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault()
+    await persist(true)
   }
 
   async function toggleItem(item: Testimonial) {
@@ -102,7 +133,7 @@ export function FeedbackAdminPage() {
             </div>
             <RowMenu
               items={[
-                { label: 'Editar', onSelect: () => { setEditing(item.id); setDraft({ name: item.name, detail: item.detail, text: item.text, active: item.active, order: item.order }) } },
+                { label: 'Editar', onSelect: () => { setEditing(item.id); editingRef.current = item.id; const next = { name: item.name, detail: item.detail, text: item.text, active: item.active, order: item.order }; setDraft(next); draftRef.current = next; setSaved(false) } },
                 { label: item.active ? 'Desativar' : 'Manter no ar', onSelect: () => void toggleItem(item) },
                 { label: 'Excluir', danger: true, onSelect: () => void remove(item) },
               ]}
@@ -110,15 +141,16 @@ export function FeedbackAdminPage() {
           </article>
         ))}
       </div>
-      <form className="mt-8 space-y-4 border border-plum/10 bg-white p-5" onSubmit={(event) => void onSubmit(event)}>
+      <form className="mt-8 space-y-4 border border-plum/10 bg-white p-5" onSubmit={(event) => void onSubmit(event)} onBlur={() => { if (editingRef.current) void persist(false) }}>
         <h2 className="font-serif text-3xl text-plum">{editing ? 'Editar nota' : 'Nova nota'}</h2>
-        <Field label="Nome" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} />
-        <Field label="Detalhe" value={draft.detail} onChange={(event) => setDraft((current) => ({ ...current, detail: event.target.value }))} placeholder="Cidade ou produto" />
-        <TextArea label="Texto" value={draft.text} onChange={(event) => setDraft((current) => ({ ...current, text: event.target.value }))} />
-        <Toggle label="Publicada" checked={draft.active} onChange={(active) => setDraft((current) => ({ ...current, active }))} />
+        {editing ? <p className="text-xs text-gold-deep">{saving ? 'Salvando…' : saved ? 'Salvo' : 'Salva ao sair do campo.'}</p> : null}
+        <Field label="Nome" value={draft.name} onChange={(event) => editDraft({ name: event.target.value })} />
+        <Field label="Detalhe" value={draft.detail} onChange={(event) => editDraft({ detail: event.target.value })} placeholder="Cidade ou produto" />
+        <TextArea label="Texto" value={draft.text} onChange={(event) => editDraft({ text: event.target.value })} />
+        <Toggle label="Publicada" checked={draft.active} onChange={(active) => { editDraft({ active }); if (editingRef.current) queueMicrotask(() => void persist(false)) }} />
         <div className="flex gap-3">
-          <Button type="submit">{editing ? 'Salvar nota' : 'Adicionar nota'}</Button>
-          {editing ? <Button variant="ghost" onClick={() => { setEditing(null); setDraft(empty) }}>Cancelar</Button> : null}
+          {editing ? null : <Button type="submit">Adicionar nota</Button>}
+          {editing ? <Button variant="ghost" onClick={() => { setEditing(null); setDraft(empty); draftRef.current = empty; editingRef.current = null; setSaved(false) }}>Cancelar</Button> : null}
         </div>
       </form>
     </div>

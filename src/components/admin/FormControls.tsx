@@ -1,6 +1,6 @@
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
 
-const fieldClass = 'w-full border border-plum/15 bg-white px-4 py-3 text-sm text-ink outline-none transition focus:border-gold'
+const fieldClass = 'w-full border border-plum/15 bg-white px-4 py-3 text-base text-ink outline-none transition focus:border-gold'
 
 export function Field({ label, ...props }: { label: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (

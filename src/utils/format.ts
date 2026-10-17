@@ -43,8 +43,10 @@ export function formatDate(value: number | null): string {
 export function whatsappHref(phone: string, message?: string): string {
   const digits = phone.replace(/\D/g, '')
   if (!digits) return ''
-  const text = message ? `?text=${encodeURIComponent(message)}` : ''
-  return `https://wa.me/${digits}${text}`
+  const text = message ? `&text=${encodeURIComponent(message)}` : ''
+  const mobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+  if (mobile) return `whatsapp://send?phone=${digits}${text}`
+  return `https://web.whatsapp.com/send?phone=${digits}${text}`
 }
 
 export function socialHref(value: string, host: string): string {

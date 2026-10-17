@@ -76,13 +76,13 @@ export function ProductsPage() {
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Buscar por nome, categoria ou tag"
           aria-label="Buscar produtos"
-          className="rounded-full border border-plum/10 bg-white/80 px-5 py-3 text-sm shadow-soft outline-none focus:border-gold"
+          className="min-h-11 rounded-full border border-plum/10 bg-white/80 px-5 py-3 text-base shadow-soft outline-none focus:border-gold"
         />
         <select
           value={categorySlug}
           onChange={(event) => updateParam('categoria', event.target.value)}
           aria-label="Filtrar por categoria"
-          className="rounded-full border border-plum/10 bg-white/80 px-5 py-3 text-sm shadow-soft outline-none"
+          className="min-h-11 rounded-full border border-plum/10 bg-white/80 px-5 py-3 text-base shadow-soft outline-none"
         >
           <option value="">Todas as categorias</option>
           {categories.map((item) => (
@@ -95,7 +95,7 @@ export function ProductsPage() {
           value={sort}
           onChange={(event) => updateParam('ordem', event.target.value === 'recent' ? '' : event.target.value)}
           aria-label="Ordenar produtos"
-          className="rounded-full border border-plum/10 bg-white/80 px-5 py-3 text-sm shadow-soft outline-none"
+          className="min-h-11 rounded-full border border-plum/10 bg-white/80 px-5 py-3 text-base shadow-soft outline-none"
         >
           <option value="recent">Mais recentes</option>
           <option value="price-asc">Menor preço</option>
@@ -144,7 +144,7 @@ export function ProductsPage() {
 
 function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: string }) {
   return (
-    <button type="button" onClick={onClick} className={cn('rounded-full border px-4 py-2 text-xs font-semibold tracking-[0.08em] transition hover:-translate-y-0.5', active ? 'border-plum bg-plum text-ivory' : 'border-plum/15 bg-white/70 text-plum')}>
+    <button type="button" onClick={onClick} className={cn('min-h-11 rounded-full border px-4 py-2 text-xs font-semibold tracking-[0.08em] transition hover:-translate-y-0.5', active ? 'border-plum bg-plum text-ivory' : 'border-plum/15 bg-white/70 text-plum')}>
       {children}
     </button>
   )

@@ -1,8 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FormSection, Field, TextArea } from '@/components/admin/FormControls'
 import { SingleImageField } from '@/components/admin/SingleImageField'
-import { Button } from '@/components/ui/Button'
 import { Notice, Spinner } from '@/components/ui/Feedback'
+import { useAutosave } from '@/hooks/useAutosave'
 import { getSettings, saveSettings } from '@/services/settingsService'
 import { resolveLocalImage } from '@/services/storageService'
 import { defaultSettings, type LocalImage, type StoreSettings } from '@/types/models'
@@ -17,11 +17,44 @@ type Images = {
 export function SettingsPage() {
   const [settings, setSettings] = useState<StoreSettings>(defaultSettings)
   const [images, setImages] = useState<Images>({ logo: null, favicon: null, about: null })
-  const [paths, setPaths] = useState({ logo: '', favicon: '', about: '' })
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
+  const imagesRef = useRef<Images>({ logo: null, favicon: null, about: null })
+  const pathsRef = useRef({ logo: '', favicon: '', about: '' })
+  const autosave = useAutosave(async (current: StoreSettings) => {
+    const [logo, favicon, about] = await Promise.all([
+      resolveLocalImage(imagesRef.current.logo, 'settings', pathsRef.current.logo),
+      resolveLocalImage(imagesRef.current.favicon, 'settings', pathsRef.current.favicon),
+      resolveLocalImage(imagesRef.current.about, 'settings', pathsRef.current.about),
+    ])
+    const next: StoreSettings = {
+      ...current,
+      logo: logo.url,
+      logoPath: logo.path,
+      favicon: favicon.url,
+      faviconPath: favicon.path,
+      aboutImage: about.url,
+      aboutImagePath: about.path,
+    }
+    const nextImages = {
+      logo: logo.url ? logo : null,
+      favicon: favicon.url ? favicon : null,
+      about: about.url ? about : null,
+    }
+    imagesRef.current = nextImages
+    pathsRef.current = { logo: logo.path, favicon: favicon.path, about: about.path }
+    await saveSettings(next)
+    setImages(nextImages)
+    setSettings((existing) => ({
+      ...existing,
+      logo: next.logo,
+      logoPath: next.logoPath,
+      favicon: next.favicon,
+      faviconPath: next.faviconPath,
+      aboutImage: next.aboutImage,
+      aboutImagePath: next.aboutImagePath,
+    }))
+    return next
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -29,15 +62,18 @@ export function SettingsPage() {
       .then((next) => {
         if (cancelled) return
         setSettings(next)
-        setImages({
+        const nextImages = {
           logo: next.logo ? { url: next.logo, path: next.logoPath } : null,
           favicon: next.favicon ? { url: next.favicon, path: next.faviconPath } : null,
           about: next.aboutImage ? { url: next.aboutImage, path: next.aboutImagePath } : null,
-        })
-        setPaths({ logo: next.logoPath, favicon: next.faviconPath, about: next.aboutImagePath })
+        }
+        imagesRef.current = nextImages
+        pathsRef.current = { logo: next.logoPath, favicon: next.faviconPath, about: next.aboutImagePath }
+        setImages(nextImages)
+        autosave.sync(next, true)
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(getErrorMessage(err))
+        if (!cancelled) autosave.setError(getErrorMessage(err))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -48,62 +84,45 @@ export function SettingsPage() {
   }, [])
 
   function update(partial: Partial<StoreSettings>) {
-    setSettings((current) => ({ ...current, ...partial }))
+    setSettings((current) => {
+      const next = { ...current, ...partial }
+      autosave.sync(next)
+      return next
+    })
   }
 
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault()
-    setSaving(true)
-    setError(null)
-    setSuccess(null)
-    try {
-      const [logo, favicon, about] = await Promise.all([
-        resolveLocalImage(images.logo, 'settings', paths.logo),
-        resolveLocalImage(images.favicon, 'settings', paths.favicon),
-        resolveLocalImage(images.about, 'settings', paths.about),
-      ])
-      const next: StoreSettings = {
-        ...settings,
-        logo: logo.url,
-        logoPath: logo.path,
-        favicon: favicon.url,
-        faviconPath: favicon.path,
-        aboutImage: about.url,
-        aboutImagePath: about.path,
-      }
-      await saveSettings(next)
-      setSettings(next)
-      setImages({
-        logo: logo.url ? logo : null,
-        favicon: favicon.url ? favicon : null,
-        about: about.url ? about : null,
-      })
-      setPaths({ logo: logo.path, favicon: favicon.path, about: about.path })
-      setSuccess('Configurações salvas.')
-    } catch (err) {
-      setError(getErrorMessage(err))
-    } finally {
-      setSaving(false)
-    }
+  function changeImage(key: 'logo' | 'favicon' | 'about', image: LocalImage | null) {
+    const nextImages = { ...imagesRef.current, [key]: image }
+    imagesRef.current = nextImages
+    setImages(nextImages)
+    if (key === 'logo') pathsRef.current = { ...pathsRef.current, logo: image?.path ?? '' }
+    if (key === 'favicon') pathsRef.current = { ...pathsRef.current, favicon: image?.path ?? '' }
+    if (key === 'about') pathsRef.current = { ...pathsRef.current, about: image?.path ?? '' }
+    update(key === 'about'
+      ? { aboutImage: image?.url ?? '', aboutImagePath: image?.path ?? '' }
+      : key === 'logo'
+        ? { logo: image?.url ?? '', logoPath: image?.path ?? '' }
+        : { favicon: image?.url ?? '', faviconPath: image?.path ?? '' })
+    queueMicrotask(() => void autosave.flush())
   }
 
   if (loading) return <Spinner label="Carregando configurações" />
 
   return (
-    <form className="mx-auto max-w-4xl space-y-6" onSubmit={(event) => void onSubmit(event)}>
+    <form className="mx-auto max-w-4xl space-y-6" onBlur={autosave.onBlur}>
       <div>
         <p className="text-[11px] uppercase tracking-[0.22em] text-gold-deep">Marca</p>
         <h1 className="mt-2 font-serif text-5xl text-plum">Loja</h1>
-        <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted">Nome, logo, favicon, WhatsApp, redes sociais e os textos de contato e da página Sobre.</p>
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted">Nome, logo, favicon, WhatsApp, redes sociais e os textos de contato e da página Sobre. Cada campo salva ao sair dele.</p>
+        <p className="mt-2 text-xs text-gold-deep">{autosave.saving ? 'Salvando…' : autosave.saved ? 'Salvo' : ''}</p>
       </div>
-      {error ? <Notice>{error}</Notice> : null}
-      {success ? <Notice tone="success">{success}</Notice> : null}
+      {autosave.error ? <Notice>{autosave.error}</Notice> : null}
       <FormSection title="Identidade">
         <Field label="Nome da loja" value={settings.storeName} onChange={(event) => update({ storeName: event.target.value })} />
         <TextArea label="Descrição para SEO" value={settings.seoDescription} onChange={(event) => update({ seoDescription: event.target.value })} />
         <div className="grid gap-6 md:grid-cols-2">
-          <SingleImageField label="Logo" image={images.logo} onChange={(logo) => setImages((current) => ({ ...current, logo }))} />
-          <SingleImageField label="Favicon" image={images.favicon} onChange={(favicon) => setImages((current) => ({ ...current, favicon }))} />
+          <SingleImageField label="Logo" image={images.logo} onChange={(logo) => changeImage('logo', logo)} />
+          <SingleImageField label="Favicon" image={images.favicon} onChange={(favicon) => changeImage('favicon', favicon)} />
         </div>
       </FormSection>
       <FormSection title="Contato">
@@ -123,9 +142,8 @@ export function SettingsPage() {
         <TextArea label="Texto institucional" value={settings.aboutText} onChange={(event) => update({ aboutText: event.target.value })} />
         <TextArea label="História da marca" value={settings.history} onChange={(event) => update({ history: event.target.value })} />
         <TextArea label="Valores" value={settings.values} onChange={(event) => update({ values: event.target.value })} placeholder="Um valor por linha" />
-        <SingleImageField label="Imagem institucional" image={images.about} onChange={(about) => setImages((current) => ({ ...current, about }))} />
+        <SingleImageField label="Imagem institucional" image={images.about} onChange={(about) => changeImage('about', about)} />
       </FormSection>
-      <Button type="submit" disabled={saving}>{saving ? 'Salvando' : 'Salvar configurações'}</Button>
     </form>
   )
 }

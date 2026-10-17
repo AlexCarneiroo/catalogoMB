@@ -21,6 +21,11 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    overflow-x: clip;
+  }
+
+  html:has([data-scroll-lock]) {
+    overflow: hidden;
   }
 
   body {
@@ -28,7 +33,13 @@
     background-image:
       radial-gradient(circle at 8% -10%, rgb(216 164 182 / 0.35), transparent 32%),
       radial-gradient(circle at 100% 0%, rgb(184 154 222 / 0.22), transparent 28%);
-    background-attachment: fixed;
+    background-attachment: scroll;
+  }
+
+  @media (min-width: 768px) {
+    body {
+      background-attachment: fixed;
+    }
   }
 
   ::selection {
@@ -71,6 +82,15 @@ body::before {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+@keyframes page-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 
@@ -130,11 +150,11 @@ body::before {
 }
 
 .page-enter {
-  animation: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: page-fade 0.45s ease both;
 }
 
 .sheet-in {
-  animation: rise 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: rise 0.45s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .float-frame {
