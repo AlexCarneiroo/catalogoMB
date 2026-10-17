@@ -193,7 +193,7 @@ export function Header() {
               autoFocus
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Nome, categoria ou tag"
+              placeholder="Nome, código ou tag"
               className="w-full border-b border-plum/20 bg-transparent py-4 font-serif text-3xl text-plum outline-none placeholder:text-plum/30 sm:text-4xl"
               aria-label="Buscar produtos"
             />
@@ -205,7 +205,7 @@ export function Header() {
                   {product.mainImage ? <img src={product.mainImage} alt="" className="h-16 w-12 object-cover" /> : <span className="h-16 w-12 bg-ivory-deep" />}
                   <span>
                     <span className="block font-serif text-2xl text-plum">{product.name}</span>
-                    <span className="text-xs uppercase tracking-[0.16em] text-muted">{categoryName(categories, product.categoryId)}</span>
+                    <span className="text-xs uppercase tracking-[0.16em] text-muted">{[categoryName(categories, product.categoryId), product.code].filter(Boolean).join(' · ')}</span>
                   </span>
                 </Link>
               </li>

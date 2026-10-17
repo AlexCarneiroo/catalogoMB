@@ -30,6 +30,7 @@ service cloud.firestore {
         && data.images is list
         && data.images.size() < 12
         && data.tags is list
+        && (!('colors' in data) || (data.colors is list && data.colors.size() <= 12))
         && (!('stock' in data) || data.stock == null || (data.stock is int && data.stock >= 0));
     }
 

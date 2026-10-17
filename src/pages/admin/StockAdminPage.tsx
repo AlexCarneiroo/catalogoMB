@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Notice, Spinner } from '@/components/ui/Feedback'
+import { useToast } from '@/contexts/ToastContext'
 import { listAllProducts, updateProductStock } from '@/services/productsService'
 import type { Product } from '@/types/models'
 import { getErrorMessage } from '@/utils/errors'
@@ -11,6 +12,7 @@ export function StockAdminPage() {
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [savedId, setSavedId] = useState<string | null>(null)
+  const { notify } = useToast()
 
   useEffect(() => {
     let cancelled = false
@@ -21,7 +23,11 @@ export function StockAdminPage() {
         setDrafts(Object.fromEntries(next.map((product) => [product.id, product.stock === null ? '' : String(product.stock)])))
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(getErrorMessage(err))
+        if (!cancelled) {
+          const message = getErrorMessage(err)
+          setError(message)
+          notify(message, 'error')
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -38,6 +44,7 @@ export function StockAdminPage() {
     if (raw === current) return
     if (stock !== null && (!Number.isInteger(stock) || stock < 0)) {
       setError('Use um número inteiro ou deixe vazio para não controlar.')
+      notify('Use um número inteiro ou deixe vazio para não controlar.', 'error')
       return
     }
     setBusyId(product.id)
@@ -46,8 +53,11 @@ export function StockAdminPage() {
       await updateProductStock(product.id, stock)
       setProducts((current) => current.map((item) => (item.id === product.id ? { ...item, stock } : item)))
       setSavedId(product.id)
+      notify('Estoque atualizado.')
     } catch (err) {
-      setError(getErrorMessage(err))
+      const message = getErrorMessage(err)
+      setError(message)
+      notify(message, 'error')
     } finally {
       setBusyId(null)
     }

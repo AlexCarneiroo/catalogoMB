@@ -1,5 +1,6 @@
 import type { Product, ProductDraft, ProductImageDraft } from '@/types/models'
 import { formatPriceInput, parsePrice, slugify } from '@/utils/format'
+import { createCode, createSku } from '@/utils/productCodes'
 
 export function emptyProductDraft(): ProductDraft {
   return {
@@ -12,9 +13,10 @@ export function emptyProductDraft(): ProductDraft {
     promotionalPrice: '',
     images: [],
     brand: '',
-    sku: '',
-    code: '',
+    sku: createSku(),
+    code: createCode(),
     tags: '',
+    colors: [],
     ingredients: '',
     howToUse: '',
     benefits: '',
@@ -48,6 +50,7 @@ export function draftFromProduct(product: Product): ProductDraft {
     sku: product.sku,
     code: product.code,
     tags: product.tags.join(', '),
+    colors: product.colors.map((color) => ({ ...color })),
     ingredients: product.ingredients,
     howToUse: product.howToUse,
     benefits: product.benefits,
@@ -78,7 +81,26 @@ export function validateProductDraft(draft: ProductDraft): string | null {
     if (!Number.isInteger(stock) || stock < 0) return 'O estoque precisa ser um número inteiro a partir de zero.'
   }
   if (draft.images.length > 8) return 'Use no máximo 8 fotos.'
+  if (draft.colors.length > 12) return 'Use no máximo 12 cores.'
+  const names = new Set<string>()
+  for (const color of draft.colors) {
+    const name = color.name.trim()
+    if (!name) return 'Informe o nome de cada cor.'
+    if (name.length > 40) return 'O nome da cor pode ter no máximo 40 caracteres.'
+    const key = name.toLocaleLowerCase('pt-BR')
+    if (names.has(key)) return 'Há cores com o mesmo nome.'
+    names.add(key)
+    if (!/^#[0-9a-fA-F]{6}$/.test(color.hex)) return 'Escolha uma amostra válida para cada cor.'
+  }
   return null
+}
+
+export function savedColors(draft: ProductDraft) {
+  return draft.colors.map((color) => ({
+    id: color.id,
+    name: color.name.trim(),
+    hex: color.hex.toUpperCase(),
+  }))
 }
 
 export function orderedDraftImages(images: ProductImageDraft[]): ProductImageDraft[] {

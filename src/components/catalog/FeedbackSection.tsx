@@ -32,7 +32,7 @@ export function FeedbackSection() {
   return (
     <section className="mt-24">
       <p className="text-xs font-medium tracking-[0.28em] text-gold-deep uppercase">Quem passou por aqui</p>
-      <h2 className="display mt-3 text-5xl text-plum md:text-7xl">Notas <span className="italic text-rose">da casa</span></h2>
+      <h2 className="display mt-3 text-5xl text-plum md:text-7xl">Notas <span className="text-rose">da casa</span></h2>
       <div className="mt-10 grid gap-5 md:grid-cols-2">
         {items.map((item) => (
           <blockquote key={item.id} className="rounded-[1.8rem] bg-white/80 p-7 shadow-soft">

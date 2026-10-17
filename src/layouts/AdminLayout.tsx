@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { Monogram, Wordmark } from '@/components/brand/BrandMark'
 import { Spinner } from '@/components/ui/Feedback'
 import { useAuth } from '@/contexts/AuthContext'
+import { useToast } from '@/contexts/ToastContext'
 import { useStore } from '@/contexts/StoreContext'
 import { shouldUsePreview } from '@/services/previewStore'
 import { cn } from '@/utils/format'
@@ -23,9 +24,11 @@ export function AdminLayout() {
   const { settings } = useStore()
   const { user, logout, configured } = useAuth()
   const navigate = useNavigate()
+  const { notify } = useToast()
   const [open, setOpen] = useState(false)
 
   async function onLogout() {
+    notify('Você saiu.')
     if (!configured) {
       navigate('/')
       return

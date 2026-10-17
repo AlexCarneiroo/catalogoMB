@@ -74,7 +74,7 @@ export function ProductsPage() {
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Buscar por nome, categoria ou tag"
+          placeholder="Buscar por nome, código ou tag"
           aria-label="Buscar produtos"
           className="min-h-11 rounded-full border border-plum/10 bg-white/80 px-5 py-3 text-base shadow-soft outline-none focus:border-gold"
         />

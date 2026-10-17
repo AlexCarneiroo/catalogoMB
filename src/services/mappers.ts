@@ -1,4 +1,4 @@
-import type { Banner, Category, Product, ProductImage, StoreSettings } from '@/types/models'
+import type { Banner, Category, Product, ProductColor, ProductImage, StoreSettings } from '@/types/models'
 import { defaultSettings } from '@/types/models'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -40,6 +40,29 @@ function readMillis(value: unknown): number | null {
   return typeof result === 'number' ? result : null
 }
 
+export function readColors(data: Record<string, unknown>): ProductColor[] {
+  const value = data.colors
+  if (!Array.isArray(value)) return []
+  const seen = new Set<string>()
+  const colors: ProductColor[] = []
+  for (const item of value) {
+    if (!isRecord(item)) continue
+    const name = readString(item, 'name').trim()
+    const hex = readString(item, 'hex').trim()
+    const id = readString(item, 'id').trim()
+    if (!name || !id || !/^#[0-9a-fA-F]{6}$/.test(hex) || seen.has(id)) continue
+    seen.add(id)
+    colors.push({ id, name, hex: hex.toUpperCase() })
+    if (colors.length === 12) break
+  }
+  return colors
+}
+
+export function withProductColors<T extends { colors?: ProductColor[] }>(product: T): T & { colors: ProductColor[] } {
+  const colors = Array.isArray(product.colors) ? product.colors.filter((color) => color && color.id && color.name && /^#[0-9a-fA-F]{6}$/.test(color.hex)) : []
+  return { ...product, colors }
+}
+
 function readImages(data: Record<string, unknown>): ProductImage[] {
   const value = data.images
   if (!Array.isArray(value)) return []
@@ -71,6 +94,7 @@ export function mapProduct(id: string, raw: unknown): Product {
     sku: readString(data, 'sku'),
     code: readString(data, 'code'),
     tags: readStringList(data, 'tags'),
+    colors: readColors(data),
     ingredients: readString(data, 'ingredients'),
     howToUse: readString(data, 'howToUse'),
     benefits: readString(data, 'benefits'),

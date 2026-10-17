@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { RowMenu } from '@/components/admin/RowMenu'
 import { Notice, Spinner } from '@/components/ui/Feedback'
+import { useToast } from '@/contexts/ToastContext'
 import { listAllProducts, updateProductFlags } from '@/services/productsService'
 import type { Product } from '@/types/models'
 import { getErrorMessage } from '@/utils/errors'
@@ -11,6 +12,7 @@ export function FeaturedAdminPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const { notify } = useToast()
 
   useEffect(() => {
     let cancelled = false
@@ -19,7 +21,11 @@ export function FeaturedAdminPage() {
         if (!cancelled) setProducts(next)
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(getErrorMessage(err))
+        if (!cancelled) {
+          const message = getErrorMessage(err)
+          setError(message)
+          notify(message, 'error')
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -35,8 +41,11 @@ export function FeaturedAdminPage() {
     try {
       await updateProductFlags(product.id, { featured: !product.featured })
       setProducts((current) => current.map((item) => (item.id === product.id ? { ...item, featured: !item.featured } : item)))
+      notify(product.featured ? 'Produto saiu dos destaques.' : 'Produto em destaque.')
     } catch (err) {
-      setError(getErrorMessage(err))
+      const message = getErrorMessage(err)
+      setError(message)
+      notify(message, 'error')
     } finally {
       setBusyId(null)
     }

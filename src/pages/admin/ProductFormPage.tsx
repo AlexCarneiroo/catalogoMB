@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { FormSection, Field, SelectField, TextArea, Toggle } from '@/components/admin/FormControls'
+import { ProductColorsField } from '@/components/admin/ProductColorsField'
 import { ProductImagesField } from '@/components/admin/ProductImagesField'
 import { Button } from '@/components/ui/Button'
 import { Notice, Spinner } from '@/components/ui/Feedback'
@@ -8,6 +9,7 @@ import { listAllCategories } from '@/services/categoriesService'
 import { draftFromProduct, emptyProductDraft, validateProductDraft } from '@/services/productDraft'
 import { getProduct, saveProduct } from '@/services/productsService'
 import type { Category, ProductDraft } from '@/types/models'
+import { useToast } from '@/contexts/ToastContext'
 import { useAutosave } from '@/hooks/useAutosave'
 import { discountPercent } from '@/utils/catalog'
 import { getErrorMessage } from '@/utils/errors'
@@ -24,7 +26,7 @@ export function ProductFormPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
+  const { notify } = useToast()
   const pathsRef = useRef<string[]>([])
   const autosave = useAutosave(async (current: ProductDraft) => {
     if (!id) return current
@@ -44,10 +46,17 @@ export function ProductFormPage() {
         const [nextCategories, product] = await Promise.all([listAllCategories(), id ? getProduct(id) : Promise.resolve(null)])
         if (cancelled) return
         setCategories(nextCategories)
-        if (id && !product) setError('Produto não encontrado.')
+        if (id && !product) {
+          setError('Produto não encontrado.')
+          notify('Produto não encontrado.', 'error')
+        }
         if (product) applyProduct(product)
       } catch (err) {
-        if (!cancelled) setError(getErrorMessage(err))
+        if (!cancelled) {
+          const message = getErrorMessage(err)
+          setError(message)
+          notify(message, 'error')
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -87,18 +96,24 @@ export function ProductFormPage() {
     const validation = validateProductDraft(draft)
     if (validation) {
       setError(validation)
-      setSuccess(null)
+      notify(validation, 'error')
       return
     }
     setSaving(true)
     setError(null)
     try {
       const saved = await saveProduct(id ?? null, draft, previousPaths)
+      if (!id) {
+        notify('Produto publicado.')
+        navigate('/admin/produtos')
+        return
+      }
       applyProduct(saved)
-      setSuccess('Alterações salvas.')
-      if (!id) navigate(`/admin/produtos/${saved.id}`, { replace: true })
+      notify('Alterações salvas.')
     } catch (err) {
-      setError(getErrorMessage(err))
+      const message = getErrorMessage(err)
+      setError(message)
+      notify(message, 'error')
     } finally {
       setSaving(false)
     }
@@ -125,7 +140,6 @@ export function ProductFormPage() {
       </div>
       {categoryOptions.length === 0 ? <Notice>Crie uma categoria antes de publicar um produto.</Notice> : null}
       {error || autosave.error ? <Notice>{error || autosave.error}</Notice> : null}
-      {success ? <Notice tone="success">{success}</Notice> : null}
 
       <FormSection title="Informações principais">
         <div className="grid gap-4 md:grid-cols-2">
@@ -158,15 +172,23 @@ export function ProductFormPage() {
         <ProductImagesField images={draft.images} onChange={(images) => commit({ images })} />
       </FormSection>
 
+      <FormSection title="Cores disponíveis">
+        <p className="text-sm leading-relaxed text-muted">
+          Cadastre as cores quando o produto tiver mais de uma. No catálogo elas aparecem para a cliente escolher antes de pedir.
+        </p>
+        <ProductColorsField colors={draft.colors} onEdit={(colors) => update({ colors })} onCommit={(colors) => commit({ colors })} />
+      </FormSection>
+
       <FormSection title="Informações adicionais">
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Marca" value={draft.brand} onChange={(event) => update({ brand: event.target.value })} />
-          <Field label="SKU" value={draft.sku} onChange={(event) => update({ sku: event.target.value })} />
-          <Field label="Código" value={draft.code} onChange={(event) => update({ code: event.target.value })} />
+          <Field label="SKU" value={draft.sku} readOnly />
+          <Field label="Código" value={draft.code} readOnly />
           <Field label="Peso" value={draft.weight} onChange={(event) => update({ weight: event.target.value })} />
           <Field label="Dimensões" value={draft.dimensions} onChange={(event) => update({ dimensions: event.target.value })} />
           <Field label="Tags" value={draft.tags} onChange={(event) => update({ tags: event.target.value })} placeholder="matte, pele, dia" />
         </div>
+        <p className="text-sm leading-relaxed text-muted">O SKU e o código são criados automaticamente. Na busca do catálogo, o produto aparece por qualquer um dos dois. Os outros campos, se ficarem em branco, não entram nos detalhes do produto.</p>
         <TextArea label="Ingredientes" value={draft.ingredients} onChange={(event) => update({ ingredients: event.target.value })} />
         <TextArea label="Modo de uso" value={draft.howToUse} onChange={(event) => update({ howToUse: event.target.value })} />
         <TextArea label="Benefícios" value={draft.benefits} onChange={(event) => update({ benefits: event.target.value })} />
@@ -212,6 +234,7 @@ function emptyPreview(price: number, promotionalPrice: number) {
     sku: '',
     code: '',
     tags: [],
+    colors: [],
     ingredients: '',
     howToUse: '',
     benefits: '',

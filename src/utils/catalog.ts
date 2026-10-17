@@ -39,7 +39,9 @@ export function cartCheckoutMessage(storeName: string, lines: CartLine[], origin
       rows.push(`Valor: ${formatCurrency(unit)} cada`)
     }
     rows.push(`Subtotal: ${formatCurrency(unit * line.quantity)}`)
+    if (line.colorName.trim()) rows.push(`Cor: ${line.colorName.trim()}`)
     if (line.sku.trim()) rows.push(`SKU: ${line.sku.trim()}`)
+    if (line.code.trim()) rows.push(`Código: ${line.code.trim()}`)
     if (line.shortDescription.trim()) rows.push(line.shortDescription.trim())
     if (origin && line.slug) rows.push(`${origin}/produto/${line.slug}`)
     return rows.join('\n')
@@ -58,9 +60,10 @@ export function cartCheckoutMessage(storeName: string, lines: CartLine[], origin
   ].join('\n')
 }
 
-export function productInquiryMessage(product: Product, categoryLabel: string, pageUrl: string): string {
+export function productInquiryMessage(product: Product, categoryLabel: string, pageUrl: string, colorName = ''): string {
   const lines = ['Olá! Quero saber mais sobre este produto:', '', `*${product.name}*`]
   if (categoryLabel) lines.push(categoryLabel)
+  if (colorName.trim()) lines.push(`Cor: ${colorName.trim()}`)
   if (isOnSale(product)) {
     lines.push(`${formatCurrency(effectivePrice(product))} (de ${formatCurrency(product.price)})`)
   } else {
@@ -70,6 +73,8 @@ export function productInquiryMessage(product: Product, categoryLabel: string, p
   if (summary) lines.push(summary)
   const sku = product.sku.trim()
   if (sku) lines.push(`SKU: ${sku}`)
+  const code = product.code.trim()
+  if (code) lines.push(`Código: ${code}`)
   if (pageUrl) lines.push('', pageUrl)
   return lines.join('\n')
 }
@@ -81,7 +86,7 @@ export function filterProducts(products: Product[], categories: Category[], filt
     if (filters.featuredOnly && !product.featured) return false
     if (filters.promoOnly && !isOnSale(product)) return false
     if (!term) return true
-    const haystack = [product.name, product.brand, categoryName(categories, product.categoryId), product.tags.join(' ')]
+    const haystack = [product.name, product.brand, product.sku, product.code, categoryName(categories, product.categoryId), product.tags.join(' '), product.colors.map((color) => color.name).join(' ')]
       .join(' ')
       .toLowerCase()
     return haystack.includes(term)

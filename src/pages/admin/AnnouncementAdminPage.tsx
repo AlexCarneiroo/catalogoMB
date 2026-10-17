@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { FormSection, Field, TextArea, Toggle } from '@/components/admin/FormControls'
 import { Button } from '@/components/ui/Button'
 import { Notice, Spinner } from '@/components/ui/Feedback'
+import { useToast } from '@/contexts/ToastContext'
 import { useAutosave } from '@/hooks/useAutosave'
 import { getSettings, saveSettings } from '@/services/settingsService'
 import { defaultSettings, type StoreSettings } from '@/types/models'
@@ -11,7 +12,7 @@ export function AnnouncementAdminPage() {
   const [settings, setSettings] = useState<StoreSettings>(defaultSettings)
   const [loading, setLoading] = useState(true)
   const [publishing, setPublishing] = useState(false)
-  const [success, setSuccess] = useState<string | null>(null)
+  const { notify } = useToast()
   const autosave = useAutosave(async (current: StoreSettings) => {
     await saveSettings(current)
     return current
@@ -52,15 +53,14 @@ export function AnnouncementAdminPage() {
 
   async function publish() {
     setPublishing(true)
-    setSuccess(null)
     let nextVersion: StoreSettings | null = null
     setSettings((current) => {
       nextVersion = { ...current, announcementVersion: current.announcementVersion + 1 }
       autosave.sync(nextVersion)
       return nextVersion
     })
-    const ok = await autosave.flush()
-    if (ok) setSuccess('Anúncio publicado. Quem já fechou a versão anterior volta a ver esta.')
+    const ok = await autosave.flush({ quiet: true })
+    if (ok) notify('Anúncio publicado. Quem já fechou a versão anterior volta a ver esta.')
     setPublishing(false)
   }
 
@@ -80,7 +80,6 @@ export function AnnouncementAdminPage() {
       <p className="mt-3 text-sm leading-relaxed text-muted">Aparece quando a pessoa abre o catálogo. O texto salva ao sair do campo. Publicar cria uma versão nova para quem já fechou o aviso.</p>
       <p className="mt-2 text-xs text-gold-deep">{autosave.saving ? 'Salvando…' : autosave.saved ? 'Salvo' : ''}</p>
       {autosave.error ? <div className="mt-6"><Notice>{autosave.error}</Notice></div> : null}
-      {success ? <div className="mt-6"><Notice tone="success">{success}</Notice></div> : null}
       <div className="mt-8">
         <FormSection title="Mensagem">
           <Toggle label="Mostrar anúncio" checked={settings.announcementActive} onChange={(announcementActive) => commit({ announcementActive })} />

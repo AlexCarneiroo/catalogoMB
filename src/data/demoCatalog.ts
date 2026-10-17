@@ -74,11 +74,18 @@ export const demoCategories: Category[] = [
   },
 ]
 
-function product(input: Omit<Product, 'images' | 'mainImage' | 'active' | 'updatedAt' | 'stock'> & { photos: string[]; stock?: number | null }): Product {
-  const { photos, stock = null, ...rest } = input
+function product(
+  input: Omit<Product, 'images' | 'mainImage' | 'active' | 'updatedAt' | 'stock' | 'colors'> & {
+    photos: string[]
+    stock?: number | null
+    colors?: Product['colors']
+  },
+): Product {
+  const { photos, stock = null, colors = [], ...rest } = input
   const gallery = images(photos)
   return {
     ...rest,
+    colors,
     stock,
     images: gallery,
     mainImage: gallery[0]?.url ?? '',
@@ -102,6 +109,11 @@ export const demoProducts: Product[] = [
     sku: 'MB-BAT-01',
     code: 'BAT01',
     tags: ['batom', 'rosa', 'matte'],
+    colors: [
+      { id: 'rosa', name: 'Rosa queimado', hex: '#C45C6A' },
+      { id: 'nude', name: 'Nude', hex: '#C4A484' },
+      { id: 'vinho', name: 'Vinho', hex: '#6B2D3C' },
+    ],
     ingredients: 'Cera de carnaúba, óleo de jojoba, pigmentos minerais, vitamina E.',
     howToUse: 'Aplique do centro dos lábios para os cantos. Uma camada basta para o dia.',
     benefits: 'Cor uniforme, conforto e acabamento que não marca as linhas.',

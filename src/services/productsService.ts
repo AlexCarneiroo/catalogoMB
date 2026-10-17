@@ -15,13 +15,13 @@ import {
 import { collections } from '@/firebase/collections'
 import { getDb } from '@/firebase/client'
 import { readPreview, shouldUsePreview, writePreview } from '@/services/previewStore'
-import { mapProduct } from '@/services/mappers'
-import { orderedDraftImages } from '@/services/productDraft'
-import { validateProductDraft } from '@/services/productDraft'
+import { mapProduct, withProductColors } from '@/services/mappers'
+import { orderedDraftImages, savedColors, validateProductDraft } from '@/services/productDraft'
 import { copyImage, deleteImage, uploadImage } from '@/services/storageService'
 import type { Product, ProductDraft, ProductImage } from '@/types/models'
 import { invalidatePublicData, readCache, writeCache } from '@/utils/cache'
 import { parsePrice, slugify } from '@/utils/format'
+import { createCode, createSku } from '@/utils/productCodes'
 
 const CACHE_KEY = 'public:products'
 
@@ -35,10 +35,10 @@ function sortByRecent(items: Product[]): Product[] {
 
 export async function listActiveProducts(): Promise<Product[]> {
   if (shouldUsePreview()) {
-    return [...readPreview().products].filter((item) => item.active).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+    return readPreview().products.filter((item) => item.active).map(withProductColors).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
   }
   const cached = readCache<Product[]>(CACHE_KEY)
-  if (cached) return cached
+  if (cached) return cached.map(withProductColors)
   const snapshot = await getDocs(query(products(), where('active', '==', true), limit(300)))
   const items = sortByRecent(snapshot.docs.map((item) => mapProduct(item.id, item.data())))
   writeCache(CACHE_KEY, items)
@@ -47,14 +47,17 @@ export async function listActiveProducts(): Promise<Product[]> {
 
 export async function listAllProducts(): Promise<Product[]> {
   if (shouldUsePreview()) {
-    return [...readPreview().products].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+    return readPreview().products.map(withProductColors).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
   }
   const snapshot = await getDocs(query(products(), orderBy('createdAt', 'desc')))
   return snapshot.docs.map((item) => mapProduct(item.id, item.data()))
 }
 
 export async function getProduct(id: string): Promise<Product | null> {
-  if (shouldUsePreview()) return readPreview().products.find((item) => item.id === id) ?? null
+  if (shouldUsePreview()) {
+    const found = readPreview().products.find((item) => item.id === id)
+    return found ? withProductColors(found) : null
+  }
   const snapshot = await getDoc(doc(getDb(), collections.products, id))
   return snapshot.exists() ? mapProduct(snapshot.id, snapshot.data()) : null
 }
@@ -65,7 +68,10 @@ export async function getActiveProductBySlug(slug: string): Promise<Product | nu
 }
 
 export async function getAnyProductBySlug(slug: string): Promise<Product | null> {
-  if (shouldUsePreview()) return readPreview().products.find((item) => item.slug === slug) ?? null
+  if (shouldUsePreview()) {
+    const found = readPreview().products.find((item) => item.slug === slug)
+    return found ? withProductColors(found) : null
+  }
   const snapshot = await getDocs(query(products(), where('slug', '==', slug), limit(1)))
   const first = snapshot.docs[0]
   return first ? mapProduct(first.id, first.data()) : null
@@ -82,6 +88,26 @@ function readStock(value: string): number | null {
   if (!trimmed) return null
   const stock = Number(trimmed.replace(',', '.'))
   return Number.isInteger(stock) ? stock : null
+}
+
+async function identifierTaken(field: 'sku' | 'code', value: string, ignoreId?: string): Promise<boolean> {
+  const expected = value.trim().toUpperCase()
+  if (!expected) return false
+  if (shouldUsePreview()) {
+    return readPreview().products.some((item) => item[field].trim().toUpperCase() === expected && item.id !== ignoreId)
+  }
+  const snapshot = await getDocs(query(products(), where(field, '==', expected), limit(4)))
+  return snapshot.docs.some((item) => item.id !== ignoreId)
+}
+
+async function keepOrCreate(current: string, field: 'sku' | 'code', create: () => string, ignoreId?: string): Promise<string> {
+  const existing = current.trim().toUpperCase()
+  if (existing && !(await identifierTaken(field, existing, ignoreId))) return existing
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const next = create()
+    if (!(await identifierTaken(field, next, ignoreId))) return next
+  }
+  return create()
 }
 
 async function slugTaken(slug: string, ignoreId?: string): Promise<boolean> {
@@ -110,6 +136,8 @@ export async function saveProduct(productId: string | null, draft: ProductDraft,
   if (validation) throw new Error(validation)
   const slug = slugify(draft.slug || draft.name)
   if (await slugTaken(slug, productId ?? undefined)) throw new Error('Já existe um produto com este slug.')
+  const sku = await keepOrCreate(draft.sku, 'sku', createSku, productId ?? undefined)
+  const code = await keepOrCreate(draft.code, 'code', createCode, productId ?? undefined)
 
   if (shouldUsePreview()) {
     const id = productId ?? `p-${Date.now()}`
@@ -129,9 +157,10 @@ export async function saveProduct(productId: string | null, draft: ProductDraft,
       images,
       mainImage: images[0]?.url ?? '',
       brand: draft.brand.trim(),
-      sku: draft.sku.trim(),
-      code: draft.code.trim(),
+      sku,
+      code,
       tags: draft.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
+      colors: savedColors(draft),
       ingredients: draft.ingredients.trim(),
       howToUse: draft.howToUse.trim(),
       benefits: draft.benefits.trim(),
@@ -166,12 +195,13 @@ export async function saveProduct(productId: string | null, draft: ProductDraft,
       images,
       mainImage: images[0]?.url ?? '',
       brand: draft.brand.trim(),
-      sku: draft.sku.trim(),
-      code: draft.code.trim(),
+      sku,
+      code,
       tags: draft.tags
         .split(',')
         .map((tag) => tag.trim())
         .filter(Boolean),
+      colors: savedColors(draft),
       ingredients: draft.ingredients.trim(),
       howToUse: draft.howToUse.trim(),
       benefits: draft.benefits.trim(),
@@ -243,11 +273,15 @@ export async function duplicateProduct(id: string): Promise<string> {
       suffix += 1
     }
     const copyId = `p-${Date.now()}`
+    const sku = await keepOrCreate('', 'sku', createSku)
+    const code = await keepOrCreate('', 'code', createCode)
     const copy: Product = {
       ...original,
       id: copyId,
       name: `${original.name} (cópia)`,
       slug,
+      sku,
+      code,
       active: false,
       featured: false,
       createdAt: Date.now(),
@@ -283,9 +317,10 @@ export async function duplicateProduct(id: string): Promise<string> {
     images,
     mainImage: images[0]?.url ?? '',
     brand: original.brand,
-    sku: original.sku,
-    code: original.code,
+    sku: await keepOrCreate('', 'sku', createSku),
+    code: await keepOrCreate('', 'code', createCode),
     tags: original.tags,
+    colors: original.colors,
     ingredients: original.ingredients,
     howToUse: original.howToUse,
     benefits: original.benefits,

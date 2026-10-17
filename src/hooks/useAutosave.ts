@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
+import { useToast } from '@/contexts/ToastContext'
 import { getErrorMessage } from '@/utils/errors'
 
-export function useAutosave<T>(save: (value: T) => Promise<T | void>) {
+export function useAutosave<T>(save: (value: T) => Promise<T | void>, options?: { savedMessage?: string | false }) {
   const latest = useRef<T | null>(null)
   const savedSerial = useRef('')
   const version = useRef(0)
@@ -11,6 +12,8 @@ export function useAutosave<T>(save: (value: T) => Promise<T | void>) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { notify } = useToast()
+  const savedMessage = options?.savedMessage
 
   function sync(value: T, markSaved = false) {
     version.current += 1
@@ -21,7 +24,7 @@ export function useAutosave<T>(save: (value: T) => Promise<T | void>) {
     }
   }
 
-  async function flush(): Promise<boolean> {
+  async function flush(flushOptions?: { quiet?: boolean }): Promise<boolean> {
     if (latest.current === null) return true
     if (running.current) {
       again.current = true
@@ -45,11 +48,14 @@ export function useAutosave<T>(save: (value: T) => Promise<T | void>) {
         if (version.current === started) latest.current = stored
         else again.current = true
         setSaved(true)
+        if (!flushOptions?.quiet && savedMessage !== false) notify(savedMessage || 'Alterações salvas.')
       } while (again.current)
     } catch (err) {
       ok = false
       setSaved(false)
-      setError(getErrorMessage(err))
+      const message = getErrorMessage(err)
+      setError(message)
+      notify(message, 'error')
     } finally {
       running.current = false
       setSaving(false)

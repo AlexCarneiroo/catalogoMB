@@ -3,6 +3,7 @@ import { Field, TextArea, Toggle } from '@/components/admin/FormControls'
 import { RowMenu } from '@/components/admin/RowMenu'
 import { Button } from '@/components/ui/Button'
 import { Notice, Spinner } from '@/components/ui/Feedback'
+import { useToast } from '@/contexts/ToastContext'
 import { getSettings, saveSettings } from '@/services/settingsService'
 import { listAllTestimonials, removeTestimonial, saveTestimonial, updateTestimonialActive } from '@/services/testimonialsService'
 import type { Testimonial } from '@/types/models'
@@ -19,6 +20,7 @@ export function FeedbackAdminPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { notify } = useToast()
   const draftRef = useRef(draft)
   const editingRef = useRef(editing)
   draftRef.current = draft
@@ -34,7 +36,11 @@ export function FeedbackAdminPage() {
     let cancelled = false
     void load()
       .catch((err: unknown) => {
-        if (!cancelled) setError(getErrorMessage(err))
+        if (!cancelled) {
+          const message = getErrorMessage(err)
+          setError(message)
+          notify(message, 'error')
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -50,8 +56,11 @@ export function FeedbackAdminPage() {
     try {
       const settings = await getSettings()
       await saveSettings({ ...settings, feedbackEnabled })
+      notify(feedbackEnabled ? 'Seção de feedbacks ativada.' : 'Seção de feedbacks oculta.')
     } catch (err) {
-      setError(getErrorMessage(err))
+      const message = getErrorMessage(err)
+      setError(message)
+      notify(message, 'error')
     }
   }
 
@@ -67,12 +76,16 @@ export function FeedbackAdminPage() {
     const current = draftRef.current
     const id = editingRef.current
     if (!reset && !id) return
-    if (!current.name.trim() || !current.text.trim()) return
+    if (!current.name.trim() || !current.text.trim()) {
+      if (reset) notify('Informe o nome e o texto da nota.', 'error')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
       await saveTestimonial(id, { ...current, order: Number(current.order) || items.length + 1 })
       setSaved(true)
+      notify(reset ? 'Nota adicionada.' : 'Nota salva.')
       if (reset) {
         setDraft(empty)
         setEditing(null)
@@ -82,7 +95,9 @@ export function FeedbackAdminPage() {
       }
       await load()
     } catch (err) {
-      setError(getErrorMessage(err))
+      const message = getErrorMessage(err)
+      setError(message)
+      notify(message, 'error')
     } finally {
       setSaving(false)
     }
@@ -97,9 +112,12 @@ export function FeedbackAdminPage() {
     setError(null)
     try {
       await updateTestimonialActive(item.id, !item.active)
+      notify(item.active ? 'Nota desativada.' : 'Nota publicada.')
       await load()
     } catch (err) {
-      setError(getErrorMessage(err))
+      const message = getErrorMessage(err)
+      setError(message)
+      notify(message, 'error')
     }
   }
 
@@ -107,9 +125,12 @@ export function FeedbackAdminPage() {
     setError(null)
     try {
       await removeTestimonial(item.id)
+      notify('Nota excluída.')
       await load()
     } catch (err) {
-      setError(getErrorMessage(err))
+      const message = getErrorMessage(err)
+      setError(message)
+      notify(message, 'error')
     }
   }
 

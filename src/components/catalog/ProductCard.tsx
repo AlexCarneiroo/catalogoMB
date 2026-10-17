@@ -5,6 +5,9 @@ import { discountPercent, isOnSale } from '@/utils/catalog'
 import { formatCurrency } from '@/utils/format'
 import { productLinkState } from '@/utils/productLink'
 
+const addButtonClass =
+  'mt-auto inline-flex h-9 w-full items-center justify-center rounded-full bg-plum px-3 text-[10px] font-semibold tracking-[0.12em] text-ivory uppercase disabled:cursor-not-allowed disabled:opacity-50'
+
 export function PriceTag({ product, large = false }: { product: Product; large?: boolean }) {
   const discount = discountPercent(product)
   const onSale = isOnSale(product)
@@ -57,16 +60,34 @@ export function ProductCard({ product, category, index = 0 }: { product: Product
           <p className="min-h-4 truncate text-[11px] font-medium tracking-[0.2em] text-gold-deep uppercase">{category || ' '}</p>
           <h3 className="mt-1 truncate font-serif text-lg text-plum italic sm:text-2xl">{product.name}</h3>
           <PriceTag product={product} />
+          {product.colors.length > 0 ? (
+            <div className="mt-2 flex items-center gap-1.5">
+              {product.colors.slice(0, 6).map((color) => (
+                <span key={color.id} title={color.name} className="h-3.5 w-3.5 rounded-full border border-plum/15" style={{ backgroundColor: color.hex }} />
+              ))}
+              {product.colors.length > 6 ? <span className="text-[10px] text-muted">+{product.colors.length - 6}</span> : null}
+            </div>
+          ) : null}
         </div>
       </Link>
-      <button
-        type="button"
-        disabled={soldOut || full}
-        onClick={() => add(product, category, 1)}
-        className="mt-auto inline-flex min-h-11 w-full items-center justify-center rounded-full bg-plum px-4 text-[11px] font-semibold tracking-[0.12em] text-ivory uppercase disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {soldOut ? 'Esgotado' : full ? 'No carrinho' : inCart > 0 ? 'Adicionar mais' : 'Adicionar'}
-      </button>
+      {product.colors.length > 0 ? (
+        <Link
+          to={`/produto/${product.slug}`}
+          state={productLinkState(location)}
+          className={addButtonClass}
+        >
+          {soldOut ? 'Esgotado' : 'Escolher cor'}
+        </Link>
+      ) : (
+        <button
+          type="button"
+          disabled={soldOut || full}
+          onClick={() => add(product, category, 1)}
+          className={addButtonClass}
+        >
+          {soldOut ? 'Esgotado' : full ? 'No carrinho' : inCart > 0 ? 'Adicionar mais' : 'Adicionar'}
+        </button>
+      )}
     </article>
   )
 }

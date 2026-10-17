@@ -58,9 +58,12 @@ export function CartDrawer() {
             <ul className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-2">
               {lines.map((line) => {
                 const unit = lineUnitPrice(line.price, line.promotionalPrice)
-                const cap = line.stock === null ? 99 : line.stock
+                const usedByOthers = lines
+                  .filter((item) => item.productId === line.productId && item.colorId !== line.colorId)
+                  .reduce((sum, item) => sum + item.quantity, 0)
+                const cap = Math.max(0, (line.stock === null ? 99 : line.stock) - usedByOthers)
                 return (
-                  <li key={line.productId} className="flex gap-3 border-b border-plum/10 pb-5">
+                  <li key={`${line.productId}:${line.colorId}`} className="flex gap-3 border-b border-plum/10 pb-5">
                     {line.image ? (
                       <img src={line.image} alt="" className="h-24 w-16 shrink-0 rounded-2xl object-cover" />
                     ) : (
@@ -69,10 +72,16 @@ export function CartDrawer() {
                     <div className="min-w-0 flex-1">
                       {line.category ? <p className="text-[10px] tracking-[0.16em] text-gold-deep uppercase">{line.category}</p> : null}
                       <p className="font-serif text-xl leading-tight break-words text-plum italic">{line.name}</p>
+                      {line.colorName ? (
+                        <p className="mt-1 flex items-center gap-2 text-sm text-muted">
+                          {line.colorHex ? <span className="h-3 w-3 rounded-full border border-plum/15" style={{ backgroundColor: line.colorHex }} /> : null}
+                          {line.colorName}
+                        </p>
+                      ) : null}
                       <p className="mt-1 text-sm text-plum">{formatCurrency(unit)}</p>
                       <div className="mt-3 flex items-center justify-between gap-2">
                         <div className="flex items-center rounded-full bg-rose-soft">
-                          <button type="button" className="grid h-11 w-11 place-items-center text-lg text-plum" aria-label={`Diminuir ${line.name}`} onClick={() => setQuantity(line.productId, line.quantity - 1)}>
+                          <button type="button" className="grid h-11 w-11 place-items-center text-lg text-plum" aria-label={`Diminuir ${line.name}`} onClick={() => setQuantity(line.productId, line.colorId, line.quantity - 1)}>
                             −
                           </button>
                           <span className="min-w-6 text-center text-sm text-plum">{line.quantity}</span>
@@ -81,14 +90,14 @@ export function CartDrawer() {
                             className="grid h-11 w-11 place-items-center text-lg text-plum disabled:opacity-40"
                             aria-label={`Aumentar ${line.name}`}
                             disabled={line.quantity >= cap}
-                            onClick={() => setQuantity(line.productId, line.quantity + 1)}
+                            onClick={() => setQuantity(line.productId, line.colorId, line.quantity + 1)}
                           >
                             +
                           </button>
                         </div>
                         <p className="text-sm text-plum">{formatCurrency(unit * line.quantity)}</p>
                       </div>
-                      <button type="button" className="mt-2 text-[11px] tracking-[0.14em] text-muted uppercase" onClick={() => remove(line.productId)}>
+                      <button type="button" className="mt-2 text-[11px] tracking-[0.14em] text-muted uppercase" onClick={() => remove(line.productId, line.colorId)}>
                         Remover
                       </button>
                     </div>

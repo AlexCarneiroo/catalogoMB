@@ -5,6 +5,7 @@ import { Field, TextArea, Toggle } from '@/components/admin/FormControls'
 import { Button } from '@/components/ui/Button'
 import { Notice, Skeleton } from '@/components/ui/Feedback'
 import { ConfirmDialog, Modal } from '@/components/ui/Modal'
+import { useToast } from '@/contexts/ToastContext'
 import { listAllBanners, removeBanner, saveBanner, updateBannerActive } from '@/services/bannersService'
 import { resolveLocalImage } from '@/services/storageService'
 import type { Banner, LocalImage } from '@/types/models'
@@ -43,6 +44,7 @@ export function BannersAdminPage() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState<Banner | null>(null)
+  const { notify } = useToast()
   const draftRef = useRef(draft)
   const savedSerial = useRef('')
   draftRef.current = draft
@@ -53,7 +55,11 @@ export function BannersAdminPage() {
 
   useEffect(() => {
     void load()
-      .catch((err: unknown) => setError(getErrorMessage(err)))
+      .catch((err: unknown) => {
+        const message = getErrorMessage(err)
+        setError(message)
+        notify(message, 'error')
+      })
       .finally(() => setLoading(false))
   }, [])
 
@@ -119,10 +125,13 @@ export function BannersAdminPage() {
       savedSerial.current = serial(stored)
       setDraft(stored)
       setSaved(true)
+      notify('Banner salvo.')
       if (closeAfter) setOpen(false)
       await load()
     } catch (err) {
-      setError(getErrorMessage(err))
+      const message = getErrorMessage(err)
+      setError(message)
+      notify(message, 'error')
     } finally {
       setSaving(false)
     }
@@ -139,9 +148,12 @@ export function BannersAdminPage() {
     try {
       await removeBanner(pending)
       setPending(null)
+      notify('Banner excluído.')
       await load()
     } catch (err) {
-      setError(getErrorMessage(err))
+      const message = getErrorMessage(err)
+      setError(message)
+      notify(message, 'error')
     } finally {
       setSaving(false)
     }
@@ -171,7 +183,14 @@ export function BannersAdminPage() {
                 { label: 'Editar', onSelect: () => startEdit(banner) },
                 {
                   label: banner.active ? 'Desativar' : 'Ativar',
-                  onSelect: () => void updateBannerActive(banner.id, !banner.active).then(load).catch((err: unknown) => setError(getErrorMessage(err))),
+                  onSelect: () => void updateBannerActive(banner.id, !banner.active).then(() => {
+                    notify(banner.active ? 'Banner desativado.' : 'Banner ativado.')
+                    return load()
+                  }).catch((err: unknown) => {
+                    const message = getErrorMessage(err)
+                    setError(message)
+                    notify(message, 'error')
+                  }),
                 },
                 { label: 'Excluir', danger: true, onSelect: () => setPending(banner) },
               ]}

@@ -4,6 +4,12 @@ export type ProductImage = {
   order: number
 }
 
+export type ProductColor = {
+  id: string
+  name: string
+  hex: string
+}
+
 export type Product = {
   id: string
   name: string
@@ -19,6 +25,7 @@ export type Product = {
   sku: string
   code: string
   tags: string[]
+  colors: ProductColor[]
   ingredients: string
   howToUse: string
   benefits: string
@@ -115,6 +122,7 @@ export type ProductDraft = {
   sku: string
   code: string
   tags: string
+  colors: ProductColor[]
   ingredients: string
   howToUse: string
   benefits: string
@@ -156,9 +164,13 @@ export type CartLine = {
   price: number
   promotionalPrice: number | null
   sku: string
+  code: string
   category: string
   shortDescription: string
   stock: number | null
+  colorId: string
+  colorName: string
+  colorHex: string
   quantity: number
 }
 

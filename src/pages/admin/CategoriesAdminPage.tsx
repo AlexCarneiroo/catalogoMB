@@ -5,6 +5,7 @@ import { Field, TextArea, Toggle } from '@/components/admin/FormControls'
 import { Button } from '@/components/ui/Button'
 import { Notice, Skeleton } from '@/components/ui/Feedback'
 import { ConfirmDialog, Modal } from '@/components/ui/Modal'
+import { useToast } from '@/contexts/ToastContext'
 import { listAllCategories, removeCategory, saveCategory, updateCategoryActive } from '@/services/categoriesService'
 import { resolveLocalImage } from '@/services/storageService'
 import type { Category, LocalImage } from '@/types/models'
@@ -34,6 +35,7 @@ export function CategoriesAdminPage() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState<Category | null>(null)
+  const { notify } = useToast()
   const draftRef = useRef(draft)
   const savedSerial = useRef('')
   draftRef.current = draft
@@ -44,7 +46,11 @@ export function CategoriesAdminPage() {
 
   useEffect(() => {
     void load()
-      .catch((err: unknown) => setError(getErrorMessage(err)))
+      .catch((err: unknown) => {
+        const message = getErrorMessage(err)
+        setError(message)
+        notify(message, 'error')
+      })
       .finally(() => setLoading(false))
   }, [])
 
@@ -95,7 +101,10 @@ export function CategoriesAdminPage() {
   async function persist(closeAfter: boolean) {
     const current = draftRef.current
     if (!current.name.trim()) {
-      if (closeAfter) setError('Informe o nome da categoria.')
+      if (closeAfter) {
+        setError('Informe o nome da categoria.')
+        notify('Informe o nome da categoria.', 'error')
+      }
       return
     }
     const nextSerial = serial(current)
@@ -118,10 +127,13 @@ export function CategoriesAdminPage() {
       savedSerial.current = serial(stored)
       setDraft(stored)
       setSaved(true)
+      notify('Categoria salva.')
       if (closeAfter) setOpen(false)
       await load()
     } catch (err) {
-      setError(getErrorMessage(err))
+      const message = getErrorMessage(err)
+      setError(message)
+      notify(message, 'error')
     } finally {
       setSaving(false)
     }
@@ -138,9 +150,12 @@ export function CategoriesAdminPage() {
     try {
       await removeCategory(pending)
       setPending(null)
+      notify('Categoria excluída.')
       await load()
     } catch (err) {
-      setError(getErrorMessage(err))
+      const message = getErrorMessage(err)
+      setError(message)
+      notify(message, 'error')
       setPending(null)
     } finally {
       setSaving(false)
@@ -171,7 +186,14 @@ export function CategoriesAdminPage() {
                 { label: 'Editar', onSelect: () => startEdit(category) },
                 {
                   label: category.active ? 'Desativar' : 'Ativar',
-                  onSelect: () => void updateCategoryActive(category.id, !category.active).then(load).catch((err: unknown) => setError(getErrorMessage(err))),
+                  onSelect: () => void updateCategoryActive(category.id, !category.active).then(() => {
+                    notify(category.active ? 'Categoria desativada.' : 'Categoria ativada.')
+                    return load()
+                  }).catch((err: unknown) => {
+                    const message = getErrorMessage(err)
+                    setError(message)
+                    notify(message, 'error')
+                  }),
                 },
                 { label: 'Excluir', danger: true, onSelect: () => setPending(category) },
               ]}

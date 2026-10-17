@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { CartLine, Product } from '@/types/models'
+import { useToast } from '@/contexts/ToastContext'
+import type { CartLine, Product, ProductColor } from '@/types/models'
 import { lineUnitPrice } from '@/utils/catalog'
 
 const storageKey = 'mabelle-cart-v1'
@@ -10,9 +11,9 @@ type CartContextValue = {
   total: number
   open: boolean
   setOpen: (open: boolean) => void
-  add: (product: Product, category: string, quantity?: number) => void
-  setQuantity: (productId: string, quantity: number) => void
-  remove: (productId: string) => void
+  add: (product: Product, category: string, quantity?: number, color?: ProductColor | null) => void
+  setQuantity: (productId: string, colorId: string, quantity: number) => void
+  remove: (productId: string, colorId: string) => void
   clear: () => void
 }
 
@@ -23,7 +24,15 @@ function stockCap(stock: number | null): number {
   return Math.max(0, Math.floor(stock))
 }
 
-function snapshot(product: Product, category: string, quantity: number): CartLine {
+function sameLine(line: CartLine, productId: string, colorId: string): boolean {
+  return line.productId === productId && line.colorId === colorId
+}
+
+function usedByProduct(lines: CartLine[], productId: string): number {
+  return lines.filter((line) => line.productId === productId).reduce((sum, line) => sum + line.quantity, 0)
+}
+
+function snapshot(product: Product, category: string, quantity: number, color: ProductColor | null): CartLine {
   return {
     productId: product.id,
     slug: product.slug,
@@ -32,9 +41,13 @@ function snapshot(product: Product, category: string, quantity: number): CartLin
     price: product.price,
     promotionalPrice: product.promotionalPrice,
     sku: product.sku,
+    code: product.code,
     category,
     shortDescription: product.shortDescription,
     stock: product.stock,
+    colorId: color?.id ?? '',
+    colorName: color?.name ?? '',
+    colorHex: color?.hex ?? '',
     quantity,
   }
 }
@@ -57,9 +70,13 @@ function readCart(): CartLine[] {
       price: typeof line.price === 'number' ? line.price : 0,
       promotionalPrice: typeof line.promotionalPrice === 'number' ? line.promotionalPrice : null,
       sku: line.sku || '',
+      code: line.code || '',
       category: line.category || '',
       shortDescription: line.shortDescription || '',
       stock: typeof line.stock === 'number' ? line.stock : null,
+      colorId: line.colorId || '',
+      colorName: line.colorName || '',
+      colorHex: line.colorHex || '',
       quantity: Math.min(stockCap(typeof line.stock === 'number' ? line.stock : null), Math.floor(line.quantity)),
     }))
   } catch {
@@ -70,6 +87,7 @@ function readCart(): CartLine[] {
 export function CartProvider({ children }: { children: ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>(() => readCart())
   const [open, setOpen] = useState(false)
+  const { notify } = useToast()
 
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(lines))
@@ -84,35 +102,49 @@ export function CartProvider({ children }: { children: ReactNode }) {
       total,
       open,
       setOpen,
-      add(product, category, quantity = 1) {
+      add(product, category, quantity = 1, color = null) {
         const amount = Math.max(1, Math.floor(quantity))
+        const selected = color ?? null
+        if (product.colors.length > 0 && !selected) return
+        const cap = stockCap(product.stock)
+        const colorId = selected?.id ?? ''
+        const existing = lines.find((line) => sameLine(line, product.id, colorId))
+        const others = usedByProduct(lines, product.id) - (existing?.quantity ?? 0)
+        const nextQuantity = Math.min(Math.max(0, cap - others), (existing?.quantity ?? 0) + amount)
+        if (nextQuantity <= (existing?.quantity ?? 0)) {
+          notify('Não há estoque para adicionar mais.', 'error')
+          return
+        }
+        const line = snapshot(product, category, nextQuantity, selected)
         setLines((current) => {
-          const cap = stockCap(product.stock)
-          const existing = current.find((line) => line.productId === product.id)
-          const nextQuantity = Math.min(cap, (existing?.quantity ?? 0) + amount)
-          if (nextQuantity <= 0) return current
-          const line = snapshot(product, category, nextQuantity)
-          if (!existing) return [...current, line]
-          return current.map((item) => (item.productId === product.id ? line : item))
+          const currentLine = current.find((item) => sameLine(item, product.id, colorId))
+          if (!currentLine) return [...current, line]
+          return current.map((item) => (sameLine(item, product.id, colorId) ? line : item))
         })
+        notify(selected ? `${product.name} (${selected.name}) adicionado ao pedido.` : `${product.name} adicionado ao pedido.`)
       },
-      setQuantity(productId, quantity) {
+      setQuantity(productId, colorId, quantity) {
         setLines((current) => {
-          const line = current.find((item) => item.productId === productId)
+          const line = current.find((item) => sameLine(item, productId, colorId))
           if (!line) return current
-          const next = Math.min(stockCap(line.stock), Math.floor(quantity))
-          if (next <= 0) return current.filter((item) => item.productId !== productId)
-          return current.map((item) => (item.productId === productId ? { ...item, quantity: next } : item))
+          const others = usedByProduct(current, productId) - line.quantity
+          const next = Math.min(Math.max(0, stockCap(line.stock) - others), Math.floor(quantity))
+          if (next <= 0) return current.filter((item) => !sameLine(item, productId, colorId))
+          return current.map((item) => (sameLine(item, productId, colorId) ? { ...item, quantity: next } : item))
         })
       },
-      remove(productId) {
-        setLines((current) => current.filter((line) => line.productId !== productId))
+      remove(productId, colorId) {
+        const line = lines.find((item) => sameLine(item, productId, colorId))
+        setLines((current) => current.filter((item) => !sameLine(item, productId, colorId)))
+        if (line) notify('Item removido do pedido.')
       },
       clear() {
+        if (lines.length === 0) return
         setLines([])
+        notify('Pedido esvaziado.')
       },
     }
-  }, [lines, open])
+  }, [lines, notify, open])
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>
 }

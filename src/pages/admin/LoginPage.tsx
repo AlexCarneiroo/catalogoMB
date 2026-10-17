@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { Notice } from '@/components/ui/Feedback'
 import { Seo } from '@/components/ui/Seo'
 import { useAuth } from '@/contexts/AuthContext'
+import { useToast } from '@/contexts/ToastContext'
 import { getErrorMessage } from '@/utils/errors'
 
 export function LoginPage() {
@@ -14,6 +15,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const { notify } = useToast()
   const [busy, setBusy] = useState(false)
 
   if (!loading && user && isAdmin) return <Navigate to="/admin" replace />
@@ -22,6 +24,7 @@ export function LoginPage() {
     event.preventDefault()
     if (mode === 'criar' && password !== confirm) {
       setError('As senhas não coincidem.')
+      notify('As senhas não coincidem.', 'error')
       return
     }
     setBusy(true)
@@ -29,8 +32,11 @@ export function LoginPage() {
     try {
       if (mode === 'criar') await register(email, password)
       else await login(email, password)
+      notify(mode === 'criar' ? 'Acesso criado.' : 'Você entrou no painel.')
     } catch (err) {
-      setError(getErrorMessage(err))
+      const message = getErrorMessage(err)
+      setError(message)
+      notify(message, 'error')
     } finally {
       setBusy(false)
     }

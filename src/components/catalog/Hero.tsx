@@ -49,7 +49,7 @@ export function Hero({ banners }: { banners: Banner[] }) {
           </p>
           <h1 className="display mt-6 max-w-3xl text-5xl text-plum sm:text-6xl md:text-8xl">
             {title.lead}{' '}
-            {title.accent ? <span className="italic text-rose">{title.accent}</span> : null}
+            {title.accent ? <span className="text-rose">{title.accent}</span> : null}
           </h1>
           {slide.subtitle ? (
             <p className="rise-delay mt-7 max-w-md text-lg leading-relaxed text-muted">{slide.subtitle}</p>

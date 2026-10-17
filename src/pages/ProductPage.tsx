@@ -46,6 +46,7 @@ export function ProductPage() {
   const [chapter, setChapter] = useState<(typeof chapters)[number]['id']>('peca')
   const [zoomed, setZoomed] = useState(false)
   const [quantity, setQuantity] = useState(1)
+  const [colorId, setColorId] = useState('')
   const [added, setAdded] = useState(false)
   const zoomedRef = useRef(false)
   zoomedRef.current = zoomed
@@ -61,6 +62,7 @@ export function ProductPage() {
       setChapter('peca')
       setZoomed(false)
       setQuantity(1)
+      setColorId(fromList.colors[0]?.id ?? '')
       setAdded(false)
       return
     }
@@ -76,6 +78,7 @@ export function ProductPage() {
         setMissing(!found)
         setPhoto(0)
         setQuantity(1)
+        setColorId(found?.colors[0]?.id ?? '')
         setAdded(false)
       })
       .catch((err: unknown) => {
@@ -108,7 +111,7 @@ export function ProductPage() {
   }, [location, navigate])
 
   const story = chapters
-    .map((item) => ({ ...item, text: product ? product[item.field] : '' }))
+    .map((item) => ({ ...item, text: product ? product[item.field].trim() : '' }))
     .filter((item) => item.text)
   const activeChapter = story.find((item) => item.id === chapter) ?? story[0]
   const photos = product?.images ?? []
@@ -122,21 +125,27 @@ export function ProductPage() {
           product,
           category?.name || categoryName(categories, product.categoryId),
           `${window.location.origin}/produto/${product.slug}`,
+          product.colors.find((color) => color.id === colorId)?.name ?? product.colors[0]?.name ?? '',
         ),
       )
     : ''
-  const inCart = product ? (lines.find((line) => line.productId === product.id)?.quantity ?? 0) : 0
+  const selectedColor = product?.colors.find((color) => color.id === colorId) ?? product?.colors[0] ?? null
+  const productLines = product ? lines.filter((line) => line.productId === product.id) : []
+  const inCart = selectedColor
+    ? (productLines.find((line) => line.colorId === selectedColor.id)?.quantity ?? 0)
+    : (productLines.find((line) => line.colorId === '')?.quantity ?? 0)
+  const used = productLines.reduce((sum, line) => sum + line.quantity, 0)
   const stockCap = product ? (product.stock === null ? 99 : product.stock) : 0
-  const room = Math.max(0, stockCap - inCart)
+  const room = Math.max(0, stockCap - used)
   const soldOut = Boolean(product && stockCap <= 0)
   const details = product
     ? [
-        ['Marca', product.brand],
-        ['SKU', product.sku],
-        ['Código', product.code],
-        ['Peso', product.weight],
-        ['Dimensões', product.dimensions],
-      ].filter((entry): entry is [string, string] => Boolean(entry[1]))
+        ['Marca', product.brand.trim()],
+        ['SKU', product.sku.trim()],
+        ['Código', product.code.trim()],
+        ['Peso', product.weight.trim()],
+        ['Dimensões', product.dimensions.trim()],
+      ].filter((entry): entry is [string, string] => entry[1].length > 0)
     : []
 
   return (
@@ -229,8 +238,35 @@ export function ProductPage() {
               </div>
               {!product.active ? <div className="mt-4"><Notice>Pré-visualização: este produto está inativo e não aparece no catálogo.</Notice></div> : null}
               <h1 className="display mt-4 text-4xl break-words text-plum sm:text-5xl md:text-6xl">{product.name}</h1>
-              {product.shortDescription ? <p className="mt-4 max-w-xl text-base leading-relaxed text-muted">{product.shortDescription}</p> : null}
+              {product.shortDescription.trim() ? <p className="mt-4 max-w-xl text-base leading-relaxed text-muted">{product.shortDescription.trim()}</p> : null}
               <PriceTag product={product} large />
+              {product.colors.length > 0 ? (
+                <div className="mt-6">
+                  <p className="text-[11px] tracking-[0.18em] text-muted uppercase">Cor · {selectedColor?.name}</p>
+                  <div className="mt-3 flex flex-wrap gap-2" role="listbox" aria-label="Cores disponíveis">
+                    {product.colors.map((color) => {
+                      const selected = color.id === selectedColor?.id
+                      return (
+                        <button
+                          key={color.id}
+                          type="button"
+                          role="option"
+                          aria-selected={selected}
+                          title={color.name}
+                          onClick={() => {
+                            setColorId(color.id)
+                            setAdded(false)
+                          }}
+                          className={cn('grid h-11 min-w-11 place-items-center rounded-full border-2 px-1', selected ? 'border-plum' : 'border-transparent')}
+                        >
+                          <span className="h-8 w-8 rounded-full border border-plum/15" style={{ backgroundColor: color.hex }} />
+                          <span className="sr-only">{color.name}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : null}
               <p className="mt-3 text-sm text-plum">{availabilityLabel(product)}</p>
               {discountPercent(product) ? <p className="mt-1 text-xs tracking-[0.14em] text-gold-deep uppercase">{discountPercent(product)}% nesta edição</p> : null}
               <div className="mt-7 flex flex-col gap-3">
@@ -254,7 +290,7 @@ export function ProductPage() {
                     disabled={soldOut || room <= 0}
                     className={buttonClass('primary', 'min-h-11')}
                     onClick={() => {
-                      add(product, category?.name || categoryName(categories, product.categoryId), Math.min(quantity, room))
+                      add(product, category?.name || categoryName(categories, product.categoryId), Math.min(quantity, room), selectedColor)
                       setAdded(true)
                       setQuantity(1)
                     }}
