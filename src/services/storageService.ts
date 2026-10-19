@@ -3,7 +3,7 @@ import { FirebaseError } from 'firebase/app'
 import { getBucket } from '@/firebase/client'
 import { shouldUsePreview } from '@/services/previewStore'
 import type { LocalImage } from '@/types/models'
-import { prepareImage } from '@/utils/images'
+import { prepareImage, shrinkForDocument } from '@/utils/images'
 
 const cloudinaryMark = 'cloudinary:'
 
@@ -67,11 +67,18 @@ export async function uploadImage(file: File, folder: string): Promise<LocalImag
   const prepared = await prepareImage(file)
   if (shouldUsePreview()) return { url: await fileToDataUrl(prepared), path: '' }
   if (usesCloudinary()) return sendToCloudinary(prepared, folder)
-  const path = `${folder}/${crypto.randomUUID()}.${extensionFor(prepared)}`
-  const storageRef = ref(getBucket(), path)
-  await uploadBytes(storageRef, prepared, { contentType: prepared.type || 'image/jpeg' })
-  const url = await getDownloadURL(storageRef)
-  return { url, path }
+  try {
+    const path = `${folder}/${crypto.randomUUID()}.${extensionFor(prepared)}`
+    const storageRef = ref(getBucket(), path)
+    await uploadBytes(storageRef, prepared, { contentType: prepared.type || 'image/jpeg' })
+    const url = await getDownloadURL(storageRef)
+    return { url, path }
+  } catch (error) {
+    if (error instanceof FirebaseError && (error.code === 'storage/quota-exceeded' || error.code === 'storage/unauthorized')) {
+      return { url: await fileToDataUrl(await shrinkForDocument(prepared)), path: '' }
+    }
+    throw error
+  }
 }
 
 export async function deleteImage(path: string): Promise<void> {
@@ -79,7 +86,7 @@ export async function deleteImage(path: string): Promise<void> {
   try {
     await deleteObject(ref(getBucket(), path))
   } catch (error) {
-    if (error instanceof FirebaseError && error.code === 'storage/object-not-found') return
+    if (error instanceof FirebaseError && (error.code === 'storage/object-not-found' || error.code === 'storage/unauthorized' || error.code === 'storage/quota-exceeded')) return
     throw error
   }
 }

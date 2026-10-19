@@ -83,7 +83,7 @@ export function AdminLayout() {
         {shouldUsePreview() ? (
           <p className="border-b border-gold/40 bg-gold/15 px-4 py-3 text-sm leading-relaxed text-plum md:px-8">
             {configured
-              ? 'O acesso usa o Firebase. Os produtos de exemplo continuam neste navegador.'
+              ? 'O acesso usa o Firebase. Neste modo de desenvolvimento, o catálogo fica neste navegador.'
               : 'O Firebase ainda não está conectado. O que você salvar fica neste navegador.'}
           </p>
         ) : null}

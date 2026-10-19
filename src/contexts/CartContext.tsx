@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useToast } from '@/contexts/ToastContext'
 import type { CartLine, Product, ProductColor } from '@/types/models'
+import { isRemovedDemoProduct } from '@/services/previewStore'
 import { lineUnitPrice } from '@/utils/catalog'
 
 const storageKey = 'mabelle-cart-v1'
@@ -61,7 +62,7 @@ function readCart(): CartLine[] {
     return parsed.filter((item): item is CartLine => {
       if (!item || typeof item !== 'object') return false
       const line = item as Partial<CartLine>
-      return typeof line.productId === 'string' && typeof line.name === 'string' && typeof line.quantity === 'number' && line.quantity > 0
+      return typeof line.productId === 'string' && !isRemovedDemoProduct(line.productId) && typeof line.name === 'string' && typeof line.quantity === 'number' && line.quantity > 0
     }).map((line) => ({
       productId: line.productId,
       slug: line.slug || '',
